@@ -30,8 +30,14 @@ Ground truth: `docs/CAP-NOTES.md` (confirmed 2026-07-07). Deadline: submissions 
 - [x] Bugs fixed during smoke: SLA margin consumed whole budget on short SLAs; reliability passed with 0 calls; zero-probe audit now refunds instead of blaming target; better-sqlite3 ^12 for Node 24 prebuilds
 - [ ] USER: dashboard registration (agent + basic service), fund AA wallet, VPS deploy, real-mode test
 
-## Phase 2 — polish (Jul 8)
-C2 schema check, C4 latency (paid→completed p50/p95 + end-to-end), badge SVG/JSON, trace viewer HTML, buyer sample_inputs (already in intake schema), deep tier service.
+## Phase 2 — polish (started early 2026-07-07, user said continue)
+- [x] C2 schema check (delivery contract: type known, content non-empty, schema = valid JSON object, content hash present; C2/C4 = quality gates → PARTIAL, not FAIL)
+- [x] C4 latency: p50/p95 paid_at→completed_at, nearest-rank, threshold p95 default 60s (LATENCY_P95_THRESHOLD_MS)
+- [x] Badge: GET /badge/:agent_id.svg + .json (shields-style, latest report by subject_agent_id, grey UNAUDITED)
+- [x] Trace viewer HTML: content-negotiated at /trace/:job_id (Accept: text/html)
+- [x] Buyer sample_inputs (đã có từ P1 trong intake schema)
+- [x] Deep tier: 3 USDC N=15 SLA 4h cap 0.5 USDC; DEEP_SERVICE_ID optional env; dryrun hỗ trợ tier=deep
+- [ ] Smoke test P2 (đang chạy) + commit
 
 ## Phase 3 — submission (Jul 8 PM / Jul 9 AM)
 README (SDK method file:line table, mermaid two-sided diagram, offline verify guide), docs/DEMO-SCRIPT.md, DoraHacks text.

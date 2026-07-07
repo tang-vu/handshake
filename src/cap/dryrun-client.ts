@@ -65,12 +65,13 @@ export class DryrunCapClient implements CapClient {
   stop(): void {}
 
   // Dev-only hook used by POST /dev/simulate-intake: a fake buyer hires Handshake.
-  simulateBuyerIntake(requirements: string): { negotiationId: string; orderId: string } {
+  simulateBuyerIntake(requirements: string, tier: 'basic' | 'deep' = 'basic'): { negotiationId: string; orderId: string } {
+    const serviceId = tier === 'deep' ? config.deepServiceId : config.basicServiceId;
     const negotiationId = `dryrun-neg-${randomUUID().slice(0, 8)}`;
     const now = new Date().toISOString();
     this.negotiations.set(negotiationId, {
       negotiationId,
-      serviceId: config.basicServiceId,
+      serviceId,
       requesterAgentId: 'dryrun-buyer-agent',
       providerAgentId: config.handshakeAgentId,
       requirements,
@@ -81,7 +82,7 @@ export class DryrunCapClient implements CapClient {
       createdTime: now,
       updatedTime: now,
     });
-    setImmediate(() => this.onIntake?.({ negotiationId, serviceId: config.basicServiceId }));
+    setImmediate(() => this.onIntake?.({ negotiationId, serviceId }));
     return { negotiationId, orderId: '(created on accept)' };
   }
 
@@ -96,7 +97,8 @@ export class DryrunCapClient implements CapClient {
   async acceptNegotiation(negotiationId: string): Promise<{ order: Order }> {
     const neg = await this.getNegotiation(negotiationId);
     neg.status = 'accepted';
-    const order = baseOrder(negotiationId, neg.serviceId, '1000000'); // our 1 USDC fee
+    const fee = neg.serviceId === config.deepServiceId ? '3000000' : '1000000'; // deep 3 / basic 1 USDC
+    const order = baseOrder(negotiationId, neg.serviceId, fee);
     order.requesterAgentId = neg.requesterAgentId;
     order.providerAgentId = config.handshakeAgentId;
     order.requesterWalletAddress = '0xDRYRUNBUYERWALLET';

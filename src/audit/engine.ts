@@ -7,11 +7,19 @@ import { appendTrace, traceRoot } from './trace.js';
 import { checkCallable } from './checks/callable.js';
 import { checkReliability } from './checks/reliability.js';
 import { checkSettlement } from './checks/settlement.js';
+import { checkSchema, type DeliverySnapshot } from './checks/schema.js';
+import { checkLatency } from './checks/latency.js';
 import { buildSignedReport, deliverablePayload } from '../attest/report.js';
-import { config } from '../config.js';
+import { config, type Tier } from '../config.js';
 
 const now = () => new Date().toISOString();
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function tierForService(serviceId: string): Tier | undefined {
+  if (serviceId === config.basicServiceId) return 'basic';
+  if (config.deepServiceId && serviceId === config.deepServiceId) return 'deep';
+  return undefined;
+}
 
 export class AuditEngine {
   // Audits run strictly one at a time: concurrent payOrder calls from one AA
@@ -37,6 +45,11 @@ export class AuditEngine {
 
   private async processIntake(negotiationId: string): Promise<void> {
     const neg = await this.cap.getNegotiation(negotiationId);
+    const tierName = tierForService(neg.serviceId);
+    if (!tierName) {
+      console.warn(`engine: negotiation ${negotiationId} targets unknown service ${neg.serviceId}, ignoring`);
+      return;
+    }
     const parsed = parseIntake(neg.requirements);
     if (!parsed.ok) {
       await this.cap.rejectNegotiation(negotiationId, `handshake: invalid intake — ${parsed.error}`);
@@ -52,7 +65,7 @@ export class AuditEngine {
       order_id: order.orderId,
       negotiation_id: negotiationId,
       buyer_agent_id: neg.requesterAgentId,
-      tier: 'basic',
+      tier: tierName,
       target_service_id: intake.target_service_id,
       target_agent_id: intake.target_agent_id ?? null,
       intake_json: JSON.stringify(intake),
@@ -62,7 +75,7 @@ export class AuditEngine {
       buyer_agent_id: neg.requesterAgentId,
       our_order_id: order.orderId,
       target_service_id: intake.target_service_id,
-      tier: 'basic',
+      tier: tierName,
     });
 
     const paid = await this.waitFor(
@@ -79,7 +92,7 @@ export class AuditEngine {
     repo.setJobStatus(jobId, 'auditing');
 
     try {
-      await this.runAudit(jobId, intake, paid);
+      await this.runAudit(jobId, tierName, intake, paid);
     } catch (err: any) {
       // Integrity rule: if the audit itself breaks, refund the buyer rather
       // than deliver a report we can't stand behind.
@@ -93,8 +106,8 @@ export class AuditEngine {
     }
   }
 
-  private async runAudit(jobId: string, intake: Intake, ourOrder: Order): Promise<void> {
-    const tier = config.tiers.basic;
+  private async runAudit(jobId: string, tierName: Tier, intake: Intake, ourOrder: Order): Promise<void> {
+    const tier = config.tiers[tierName];
     const startedAt = now();
     // The SLA countdown started at the buyer's payment; miss it and the escrow
     // (our fee) auto-refunds. Keep a safety margin to build/sign/deliver, but
@@ -117,7 +130,7 @@ export class AuditEngine {
       probes.push(probe);
 
       if (probe.status === 'price_over_cap') {
-        const reason = `handshake: target price ${probe.price} exceeds basic tier cap ${tier.targetPriceCapBaseUnits} (USDC base units) — full refund`;
+        const reason = `handshake: target price ${probe.price} exceeds ${tierName} tier cap ${tier.targetPriceCapBaseUnits} (USDC base units) — full refund`;
         appendTrace(jobId, 'job_refused_price_cap', { target_price: probe.price, cap: String(tier.targetPriceCapBaseUnits) });
         await this.cap.rejectOrder(ourOrder.orderId, reason);
         repo.setJobStatus(jobId, 'refused', reason);
@@ -134,12 +147,16 @@ export class AuditEngine {
 
     const checks = {
       callable: checkCallable(probes),
+      schema: checkSchema(probes),
       settlement: await checkSettlement(probes, this.verifier),
+      latency: checkLatency(probes),
       reliability: checkReliability(probes),
     };
     appendTrace(jobId, 'checks_computed', {
       callable: checks.callable.pass,
+      schema: checks.schema.pass,
       settlement: checks.settlement.pass,
+      latency: checks.latency.pass,
       reliability: checks.reliability.pass,
     });
 
@@ -157,6 +174,7 @@ export class AuditEngine {
     });
     repo.saveReport({
       job_id: jobId,
+      subject_agent_id: subjectAgentId,
       report_json: JSON.stringify(report),
       trace_root: report.trace_root as string,
       verdict: report.verdict as string,
@@ -205,7 +223,7 @@ export class AuditEngine {
       job_id: jobId, seq, negotiation_id: null, order_id: null, status: 'negotiating',
       price: null, requester_wallet: null, provider_wallet: null, pay_tx_hash: null,
       clear_tx_hash: null, started_at: now(), order_created_at: null, paid_at: null,
-      completed_at: null, error: null,
+      completed_at: null, delivery_json: null, error: null,
     };
     const save = () => repo.upsertProbe(probe);
     save();
@@ -278,6 +296,16 @@ export class AuditEngine {
       probe.completed_at = now();
       if (finalOrder.status === 'completed') {
         const delivery = await this.cap.getDelivery(order.orderId).catch(() => undefined);
+        if (delivery) {
+          // Snapshot for the C2 schema check; cap stored content at 2 KB.
+          const snapshot: DeliverySnapshot = {
+            deliverableType: delivery.deliverableType,
+            deliverableText: (delivery.deliverableText ?? '').slice(0, 2048),
+            deliverableSchema: (delivery.deliverableSchema ?? '').slice(0, 2048),
+            contentHash: delivery.contentHash ?? '',
+          };
+          probe.delivery_json = JSON.stringify(snapshot);
+        }
         appendTrace(jobId, 'probe_delivery_received', {
           seq, content_hash: delivery?.contentHash ?? '', deliverable_type: delivery?.deliverableType ?? '',
         });

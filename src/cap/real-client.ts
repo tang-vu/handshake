@@ -23,7 +23,9 @@ export class RealCapClient implements CapClient {
     // here; the audit engine polls order state instead (WS is best-effort).
     this.stream.on(EventType.NegotiationCreated, (e) => {
       if (!e.negotiation_id || !e.service_id) return;
-      if (e.service_id !== config.basicServiceId) return;
+      const ours = e.service_id === config.basicServiceId ||
+        (config.deepServiceId !== '' && e.service_id === config.deepServiceId);
+      if (!ours) return;
       onIntake({ negotiationId: e.negotiation_id, serviceId: e.service_id });
     });
   }

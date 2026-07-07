@@ -3,10 +3,14 @@ import { publicKeyHex, signReport } from './sign.js';
 import type { CallableCheck } from '../audit/checks/callable.js';
 import type { SettlementCheck } from '../audit/checks/settlement.js';
 import type { ReliabilityCheck } from '../audit/checks/reliability.js';
+import type { SchemaCheck } from '../audit/checks/schema.js';
+import type { LatencyCheck } from '../audit/checks/latency.js';
 
 export interface CheckResults {
   callable: CallableCheck;
+  schema: SchemaCheck;
   settlement: SettlementCheck;
+  latency: LatencyCheck;
   reliability: ReliabilityCheck;
 }
 
@@ -22,9 +26,11 @@ export interface ReportInputs {
 
 // Verdict is pure deterministic code — never LLM judgment, never negotiable.
 // A paying customer's confidence is the product: FAIL stays FAIL.
+// Hard gates: callable + on-chain settlement. Quality gates (reliability,
+// schema conformance, latency) downgrade PASS to PARTIAL.
 export function computeVerdict(c: CheckResults): 'PASS' | 'PARTIAL' | 'FAIL' {
   if (!c.callable.pass || !c.settlement.pass) return 'FAIL';
-  if (c.reliability.pass) return 'PASS';
+  if (c.reliability.pass && c.schema.pass && c.latency.pass) return 'PASS';
   return 'PARTIAL';
 }
 
@@ -38,6 +44,12 @@ function remediation(c: CheckResults): string[] {
   }
   if (!c.reliability.pass) {
     out.push(`${c.reliability.errors}/${c.reliability.calls} probe call(s) failed — see checks.reliability.failures; deliver within the service SLA and avoid rejecting paid orders.`);
+  }
+  if (!c.schema.pass) {
+    out.push('Fix delivery conformance: see checks.schema.violations — return non-empty content matching the declared deliverable type (schema deliveries must be valid JSON objects).');
+  }
+  if (!c.latency.pass) {
+    out.push(`Reduce delivery latency: p95 ${c.latency.p95}ms exceeds the ${c.latency.threshold_p95}ms threshold (measured paid -> completed).`);
   }
   return out;
 }
@@ -63,7 +75,7 @@ export function buildSignedReport(input: ReportInputs): Record<string, unknown> 
     finished_at: input.finishedAt,
     checks: {
       callable: input.checks.callable,
-      schema: { skipped: true, reason: 'C2 not included in this report version' },
+      schema: { pass: input.checks.schema.pass, violations: input.checks.schema.violations },
       settlement: {
         pass: input.checks.settlement.pass,
         chain: input.checks.settlement.chain,
@@ -71,7 +83,14 @@ export function buildSignedReport(input: ReportInputs): Record<string, unknown> 
         detail: input.checks.settlement.detail,
         verifications: input.checks.settlement.verifications,
       },
-      latency_ms: { skipped: true, reason: 'C4 not included in this report version' },
+      latency_ms: {
+        pass: input.checks.latency.pass,
+        p50: input.checks.latency.p50,
+        p95: input.checks.latency.p95,
+        threshold_p95: input.checks.latency.threshold_p95,
+        samples: input.checks.latency.samples,
+        basis: input.checks.latency.basis,
+      },
       reliability: {
         pass: input.checks.reliability.pass,
         calls: input.checks.reliability.calls,

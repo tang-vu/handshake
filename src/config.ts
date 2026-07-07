@@ -33,6 +33,9 @@ export const config = {
   crooSdkKey: mode === 'real' ? required('CROO_SDK_KEY') : (process.env.CROO_SDK_KEY ?? ''),
   handshakeAgentId: mode === 'real' ? required('HANDSHAKE_AGENT_ID') : (process.env.HANDSHAKE_AGENT_ID ?? 'dryrun-handshake-agent'),
   basicServiceId: mode === 'real' ? required('BASIC_SERVICE_ID') : (process.env.BASIC_SERVICE_ID ?? 'dryrun-basic-service'),
+  // Deep tier is optional: leave DEEP_SERVICE_ID unset until the service is
+  // registered in the Dashboard; negotiations for it are simply not matched.
+  deepServiceId: process.env.DEEP_SERVICE_ID ?? (mode === 'dryrun' ? 'dryrun-deep-service' : ''),
 
   baseRpcUrl: process.env.BASE_RPC_URL ?? 'https://mainnet.base.org',
   ed25519PrivateKeyHex: required('ED25519_PRIVATE_KEY_HEX'),
@@ -52,7 +55,15 @@ export const config = {
       targetPriceCapBaseUnits: 200_000n, // 0.20 USDC
       slaMs: 2 * 60 * 60 * 1000,
     },
+    deep: {
+      probeCount: 15,
+      targetPriceCapBaseUnits: 500_000n, // 0.50 USDC
+      slaMs: 4 * 60 * 60 * 1000,
+    },
   },
+
+  // C4: p95 of target's paid→completed latency must stay under this.
+  latencyP95ThresholdMs: Number(process.env.LATENCY_P95_THRESHOLD_MS ?? 60_000),
 
   // Engine timing
   pollIntervalMs: Number(process.env.POLL_INTERVAL_MS ?? 3000),

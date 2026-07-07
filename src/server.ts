@@ -9,6 +9,8 @@ import type { CapClient, ChainVerifier } from './cap/client.js';
 import { RealCapClient } from './cap/real-client.js';
 import { BaseChainVerifier } from './cap/chain-verifier.js';
 import { DryrunCapClient, DryrunChainVerifier } from './cap/dryrun-client.js';
+import { badgeData, badgeSvg } from './attest/badge.js';
+import { renderTraceHtml } from './views/trace-viewer-html.js';
 
 const app = new Hono();
 
@@ -50,10 +52,21 @@ app.get('/verify/:job_id', (c) => {
   });
 });
 
+// Content-negotiated: browsers get the HTML viewer, agents get JSON.
 app.get('/trace/:job_id', (c) => {
   const jobId = c.req.param('job_id');
   const steps = repo.getTraceSteps(jobId);
   if (steps.length === 0) return c.json({ error: 'trace not found' }, 404);
+
+  if ((c.req.header('accept') ?? '').includes('text/html')) {
+    return c.html(renderTraceHtml({
+      jobId,
+      traceRoot: traceRoot(jobId),
+      chainValid: verifyTraceChain(jobId).valid,
+      steps,
+      reportUrl: `${config.publicBaseUrl}/report/${jobId}`,
+    }));
+  }
   return c.json({
     job_id: jobId,
     trace_root: traceRoot(jobId),
@@ -61,6 +74,19 @@ app.get('/trace/:job_id', (c) => {
       seq: s.seq, ts: s.ts, step: s.step, data: JSON.parse(s.data_json),
       prev_hash: s.prev_hash, hash: s.hash,
     })),
+  });
+});
+
+// /badge/<agent_id>.svg (embeddable image) or /badge/<agent_id>.json (machine).
+app.get('/badge/:file', (c) => {
+  const file = c.req.param('file');
+  const m = file.match(/^(.+)\.(svg|json)$/);
+  if (!m) return c.json({ error: 'use /badge/<agent_id>.svg or /badge/<agent_id>.json' }, 400);
+  const data = badgeData(m[1], repo.getLatestReportForSubject(m[1]));
+  if (m[2] === 'json') return c.json(data);
+  return c.body(badgeSvg(data), 200, {
+    'content-type': 'image/svg+xml',
+    'cache-control': 'no-cache, max-age=300',
   });
 });
 
@@ -86,8 +112,9 @@ if (config.mode === 'dryrun') {
       ...(body.sample_inputs ? { sample_inputs: body.sample_inputs } : {}),
       ...(body.callback_url ? { callback_url: body.callback_url } : {}),
     });
-    const result = (cap as DryrunCapClient).simulateBuyerIntake(requirements);
-    return c.json({ simulated: true, ...result, hint: 'watch server logs; then GET /job list via /report/:job_id once delivered' });
+    const tier = body.tier === 'deep' ? 'deep' : 'basic';
+    const result = (cap as DryrunCapClient).simulateBuyerIntake(requirements, tier);
+    return c.json({ simulated: true, tier, ...result, hint: 'watch server logs; then GET /job list via /report/:job_id once delivered' });
   });
 }
 

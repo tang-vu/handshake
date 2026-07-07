@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS probes (
   order_created_at TEXT,
   paid_at          TEXT,
   completed_at     TEXT,
+  delivery_json    TEXT,                  -- raw delivery snapshot for the C2 schema check
   error            TEXT,
   PRIMARY KEY (job_id, seq)
 );
@@ -46,9 +47,10 @@ CREATE TABLE IF NOT EXISTS trace_steps (
 );
 
 CREATE TABLE IF NOT EXISTS reports (
-  job_id      TEXT PRIMARY KEY,
-  report_json TEXT NOT NULL,             -- full signed AuditReport (includes signature)
-  trace_root  TEXT NOT NULL,
-  verdict     TEXT NOT NULL,
-  created_at  TEXT NOT NULL
+  job_id           TEXT PRIMARY KEY,
+  subject_agent_id TEXT NOT NULL,        -- audited agent, for badge lookup by agent id
+  report_json      TEXT NOT NULL,        -- full signed AuditReport (includes signature)
+  trace_root       TEXT NOT NULL,
+  verdict          TEXT NOT NULL,
+  created_at       TEXT NOT NULL
 );

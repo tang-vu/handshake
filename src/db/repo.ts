@@ -35,6 +35,7 @@ export interface ProbeRow {
   order_created_at: string | null;
   paid_at: string | null;
   completed_at: string | null;
+  delivery_json: string | null;
   error: string | null;
 }
 
@@ -50,6 +51,7 @@ export interface TraceStepRow {
 
 export interface ReportRow {
   job_id: string;
+  subject_agent_id: string;
   report_json: string;
   trace_root: string;
   verdict: string;
@@ -93,14 +95,15 @@ export const repo = {
   upsertProbe(p: ProbeRow): void {
     db.prepare(
       `INSERT INTO probes (job_id, seq, negotiation_id, order_id, status, price, requester_wallet, provider_wallet,
-       pay_tx_hash, clear_tx_hash, started_at, order_created_at, paid_at, completed_at, error)
+       pay_tx_hash, clear_tx_hash, started_at, order_created_at, paid_at, completed_at, delivery_json, error)
        VALUES (@job_id, @seq, @negotiation_id, @order_id, @status, @price, @requester_wallet, @provider_wallet,
-       @pay_tx_hash, @clear_tx_hash, @started_at, @order_created_at, @paid_at, @completed_at, @error)
+       @pay_tx_hash, @clear_tx_hash, @started_at, @order_created_at, @paid_at, @completed_at, @delivery_json, @error)
        ON CONFLICT (job_id, seq) DO UPDATE SET
          negotiation_id = @negotiation_id, order_id = @order_id, status = @status, price = @price,
          requester_wallet = @requester_wallet, provider_wallet = @provider_wallet,
          pay_tx_hash = @pay_tx_hash, clear_tx_hash = @clear_tx_hash, started_at = @started_at,
-         order_created_at = @order_created_at, paid_at = @paid_at, completed_at = @completed_at, error = @error`
+         order_created_at = @order_created_at, paid_at = @paid_at, completed_at = @completed_at,
+         delivery_json = @delivery_json, error = @error`
     ).run(p);
   },
 
@@ -126,12 +129,17 @@ export const repo = {
 
   saveReport(r: Omit<ReportRow, 'created_at'>): void {
     db.prepare(
-      `INSERT OR REPLACE INTO reports (job_id, report_json, trace_root, verdict, created_at)
-       VALUES (@job_id, @report_json, @trace_root, @verdict, @created_at)`
+      `INSERT OR REPLACE INTO reports (job_id, subject_agent_id, report_json, trace_root, verdict, created_at)
+       VALUES (@job_id, @subject_agent_id, @report_json, @trace_root, @verdict, @created_at)`
     ).run({ ...r, created_at: now() });
   },
 
   getReport(jobId: string): ReportRow | undefined {
     return db.prepare('SELECT * FROM reports WHERE job_id = ?').get(jobId) as ReportRow | undefined;
+  },
+
+  getLatestReportForSubject(agentId: string): ReportRow | undefined {
+    return db.prepare('SELECT * FROM reports WHERE subject_agent_id = ? ORDER BY created_at DESC LIMIT 1')
+      .get(agentId) as ReportRow | undefined;
   },
 };
