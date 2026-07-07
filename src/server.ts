@@ -1,0 +1,105 @@
+import { Hono } from 'hono';
+import { serve } from '@hono/node-server';
+import { config } from './config.js';
+import { repo } from './db/repo.js';
+import { verifyReport, publicKeyHex } from './attest/sign.js';
+import { verifyTraceChain, traceRoot } from './audit/trace.js';
+import { AuditEngine } from './audit/engine.js';
+import type { CapClient, ChainVerifier } from './cap/client.js';
+import { RealCapClient } from './cap/real-client.js';
+import { BaseChainVerifier } from './cap/chain-verifier.js';
+import { DryrunCapClient, DryrunChainVerifier } from './cap/dryrun-client.js';
+
+const app = new Hono();
+
+app.get('/healthz', (c) => c.json({ ok: true, mode: config.mode, agent_id: config.handshakeAgentId }));
+
+app.get('/report/:job_id', (c) => {
+  const row = repo.getReport(c.req.param('job_id'));
+  if (!row) return c.json({ error: 'report not found' }, 404);
+  return c.body(row.report_json, 200, { 'content-type': 'application/json' });
+});
+
+// Re-checks the ed25519 signature and the trace hash chain server-side, and
+// documents how to reproduce the same verification offline.
+app.get('/verify/:job_id', (c) => {
+  const jobId = c.req.param('job_id');
+  const row = repo.getReport(jobId);
+  if (!row) return c.json({ error: 'report not found' }, 404);
+
+  const report = JSON.parse(row.report_json) as Record<string, unknown>;
+  const pubkey = publicKeyHex(config.ed25519PrivateKeyHex);
+  const signature = String(report.signature ?? '').replace(/^ed25519:/, '');
+  const signatureValid = verifyReport(report, signature, pubkey);
+  const chain = verifyTraceChain(jobId);
+
+  return c.json({
+    job_id: jobId,
+    verdict: row.verdict,
+    signature_valid: signatureValid,
+    trace_chain_valid: chain.valid,
+    trace_root: row.trace_root,
+    auditor_pubkey: `ed25519:${pubkey}`,
+    how_to_verify_offline: [
+      `1. GET ${config.publicBaseUrl}/report/${jobId} and parse the JSON.`,
+      '2. Remove the "signature" field.',
+      '3. Canonicalize: recursively sort object keys lexicographically, serialize with JSON.stringify semantics, no whitespace. (All numbers in the report are integers, so this equals RFC 8785 JCS output.)',
+      '4. Verify the ed25519 signature over the UTF-8 bytes of that string using the auditor pubkey embedded in the report (auditor.pubkey).',
+      `5. Optionally re-derive the trace chain from GET ${config.publicBaseUrl}/trace/${jobId}: each step hash = sha256(canonical({job_id,seq,ts,step,data,prev_hash})); the final hash must equal the report's trace_root.`,
+    ],
+  });
+});
+
+app.get('/trace/:job_id', (c) => {
+  const jobId = c.req.param('job_id');
+  const steps = repo.getTraceSteps(jobId);
+  if (steps.length === 0) return c.json({ error: 'trace not found' }, 404);
+  return c.json({
+    job_id: jobId,
+    trace_root: traceRoot(jobId),
+    steps: steps.map((s) => ({
+      seq: s.seq, ts: s.ts, step: s.step, data: JSON.parse(s.data_json),
+      prev_hash: s.prev_hash, hash: s.hash,
+    })),
+  });
+});
+
+app.get('/job/:job_id', (c) => {
+  const job = repo.getJob(c.req.param('job_id'));
+  if (!job) return c.json({ error: 'job not found' }, 404);
+  return c.json({ ...job, probes: repo.getProbes(job.job_id) });
+});
+
+// --- Bootstrap ---
+
+const cap: CapClient = config.mode === 'real' ? new RealCapClient() : new DryrunCapClient();
+const verifier: ChainVerifier = config.mode === 'real' ? new BaseChainVerifier() : new DryrunChainVerifier();
+const engine = new AuditEngine(cap, verifier);
+
+if (config.mode === 'dryrun') {
+  // Local-only stand-in for a real CAP negotiation hitting our service.
+  app.post('/dev/simulate-intake', async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    const requirements = JSON.stringify({
+      target_service_id: body.target_service_id ?? 'dryrun-target-ok',
+      ...(body.target_agent_id ? { target_agent_id: body.target_agent_id } : {}),
+      ...(body.sample_inputs ? { sample_inputs: body.sample_inputs } : {}),
+      ...(body.callback_url ? { callback_url: body.callback_url } : {}),
+    });
+    const result = (cap as DryrunCapClient).simulateBuyerIntake(requirements);
+    return c.json({ simulated: true, ...result, hint: 'watch server logs; then GET /job list via /report/:job_id once delivered' });
+  });
+}
+
+async function main(): Promise<void> {
+  engine.abortStaleJobs();
+  await cap.start((e) => engine.handleIntake(e));
+  serve({ fetch: app.fetch, port: config.port }, (info) => {
+    console.log(`handshake: ${config.mode} mode, listening on :${info.port}, public base ${config.publicBaseUrl}`);
+  });
+}
+
+main().catch((err) => {
+  console.error('handshake: fatal startup error', err);
+  process.exit(1);
+});
