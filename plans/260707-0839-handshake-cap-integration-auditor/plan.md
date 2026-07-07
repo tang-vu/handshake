@@ -37,10 +37,14 @@ Ground truth: `docs/CAP-NOTES.md` (confirmed 2026-07-07). Deadline: submissions 
 - [x] Trace viewer HTML: content-negotiated at /trace/:job_id (Accept: text/html)
 - [x] Buyer sample_inputs (đã có từ P1 trong intake schema)
 - [x] Deep tier: 3 USDC N=15 SLA 4h cap 0.5 USDC; DEEP_SERVICE_ID optional env; dryrun hỗ trợ tier=deep
-- [ ] Smoke test P2 (đang chạy) + commit
+- [x] Smoke test P2 pass (basic PASS 0/5; deep PARTIAL 5/15 đúng nhịp flaky; badge SVG/JSON + UNAUDITED; trace HTML; sig+chain valid) — commit 4359bac
 
-## Phase 3 — submission (Jul 8 PM / Jul 9 AM)
-README (SDK method file:line table, mermaid two-sided diagram, offline verify guide), docs/DEMO-SCRIPT.md, DoraHacks text.
+## Phase 3 — submission assets (code-side done 2026-07-07)
+- [x] README.md: two-sided mermaid diagram, setup, SDK method file:line table (verified against real-client.ts), integration examples, offline verify snippet, MIT
+- [x] docs/DEMO-SCRIPT.md (≤5 min, đúng cấu trúc master prompt, có fallback plan)
+- [x] docs/DORAHACKS-SUBMISSION.md (tagline, description, tracks, links placeholder)
+- [x] scripts/hire-handshake.ts — buyer-side demo script (typecheck sạch)
+- [ ] USER: đăng ký Dashboard, deploy VPS, chạy real-mode, quay video, điền links, submit trước 9/7
 
 ## Risks
 - Handshake SLA (2h) vs sequential probes against slow targets → per-probe timeout (default 600s) + global deadline = paid_at + SLA − 10min margin; on breach deliver PARTIAL with completed probes rather than lose escrow.
