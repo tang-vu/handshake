@@ -15,7 +15,11 @@ import { faviconSvg, logoSvg } from './views/brand-assets.js';
 
 const app = new Hono();
 
-app.get('/healthz', (c) => c.json({ ok: true, mode: config.mode, agent_id: config.handshakeAgentId }));
+app.get('/healthz', (c) => c.json({
+  ok: true,
+  mode: config.mode,
+  agent_id: config.handshakeAgentId || 'auto (from SDK key)',
+}));
 
 const svgHeaders = { 'content-type': 'image/svg+xml', 'cache-control': 'public, max-age=86400' } as const;
 app.get('/favicon.svg', (c) => c.body(faviconSvg, 200, svgHeaders));

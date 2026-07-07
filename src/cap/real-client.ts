@@ -19,13 +19,19 @@ export class RealCapClient implements CapClient {
 
   async start(onIntake: (e: IntakeEvent) => void): Promise<void> {
     this.stream = await this.client.connectWebSocket();
-    // Intake = negotiations for OUR services. Probe-order events are ignored
-    // here; the audit engine polls order state instead (WS is best-effort).
+    // Intake = negotiations for OUR services (the WS stream only ever delivers
+    // negotiations targeting this agent). Probe-order events are ignored here;
+    // the audit engine polls order state instead (WS is best-effort).
+    const serviceFilter = config.basicServiceId !== '' || config.deepServiceId !== '';
     this.stream.on(EventType.NegotiationCreated, (e) => {
       if (!e.negotiation_id || !e.service_id) return;
-      const ours = e.service_id === config.basicServiceId ||
-        (config.deepServiceId !== '' && e.service_id === config.deepServiceId);
-      if (!ours) return;
+      // Only filter when service ids are explicitly configured; otherwise accept
+      // every incoming negotiation (self-configuring, single-service default).
+      if (serviceFilter) {
+        const ours = e.service_id === config.basicServiceId ||
+          (config.deepServiceId !== '' && e.service_id === config.deepServiceId);
+        if (!ours) return;
+      }
       onIntake({ negotiationId: e.negotiation_id, serviceId: e.service_id });
     });
   }

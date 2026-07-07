@@ -16,6 +16,7 @@ export interface CheckResults {
 
 export interface ReportInputs {
   jobId: string;
+  auditorAgentId: string;
   subjectAgentId: string;
   subjectServiceId: string;
   startedAt: string;
@@ -62,7 +63,7 @@ export function buildSignedReport(input: ReportInputs): Record<string, unknown> 
   const report: Record<string, unknown> = {
     version: '1',
     auditor: {
-      agent_id: config.handshakeAgentId,
+      agent_id: input.auditorAgentId,
       pubkey: `ed25519:${publicKeyHex(config.ed25519PrivateKeyHex)}`,
     },
     subject: {

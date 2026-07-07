@@ -16,8 +16,11 @@ const now = () => new Date().toISOString();
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function tierForService(serviceId: string): Tier | undefined {
-  if (serviceId === config.basicServiceId) return 'basic';
   if (config.deepServiceId && serviceId === config.deepServiceId) return 'deep';
+  if (config.basicServiceId && serviceId === config.basicServiceId) return 'basic';
+  // No service ids configured → single-service default: treat every negotiation
+  // as the basic tier. (When ids ARE configured, an unmatched service is rejected.)
+  if (!config.basicServiceId && !config.deepServiceId) return 'basic';
   return undefined;
 }
 
@@ -163,8 +166,12 @@ export class AuditEngine {
     const subjectAgentId =
       (await this.subjectAgentIdFromProbes(probes)) ?? intake.target_agent_id ?? 'unknown';
 
+    // Our own agent id: from config if set, else the provider side of the
+    // buyer's order (that's us) — lets Handshake self-configure from just the key.
+    const auditorAgentId = config.handshakeAgentId || ourOrder.providerAgentId || 'handshake';
     const report = buildSignedReport({
       jobId,
+      auditorAgentId,
       subjectAgentId,
       subjectServiceId: intake.target_service_id,
       startedAt,

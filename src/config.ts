@@ -31,8 +31,13 @@ export const config = {
   crooApiUrl: mode === 'real' ? required('CROO_API_URL') : (process.env.CROO_API_URL ?? ''),
   crooWsUrl: mode === 'real' ? required('CROO_WS_URL') : (process.env.CROO_WS_URL ?? ''),
   crooSdkKey: mode === 'real' ? required('CROO_SDK_KEY') : (process.env.CROO_SDK_KEY ?? ''),
-  handshakeAgentId: mode === 'real' ? required('HANDSHAKE_AGENT_ID') : (process.env.HANDSHAKE_AGENT_ID ?? 'dryrun-handshake-agent'),
-  basicServiceId: mode === 'real' ? required('BASIC_SERVICE_ID') : (process.env.BASIC_SERVICE_ID ?? 'dryrun-basic-service'),
+  // Agent id and service ids are OPTIONAL even in real mode: the WebSocket
+  // stream only delivers negotiations targeting this agent's own services, so
+  // Handshake can self-configure from just the SDK key. When unset, the agent
+  // id is derived from the first negotiation's provider_agent_id, and every
+  // incoming negotiation is treated as the basic tier (single-service default).
+  handshakeAgentId: process.env.HANDSHAKE_AGENT_ID ?? (mode === 'dryrun' ? 'dryrun-handshake-agent' : ''),
+  basicServiceId: process.env.BASIC_SERVICE_ID ?? (mode === 'dryrun' ? 'dryrun-basic-service' : ''),
   // Deep tier is optional: leave DEEP_SERVICE_ID unset until the service is
   // registered in the Dashboard; negotiations for it are simply not matched.
   deepServiceId: process.env.DEEP_SERVICE_ID ?? (mode === 'dryrun' ? 'dryrun-deep-service' : ''),
