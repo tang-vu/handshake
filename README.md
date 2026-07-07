@@ -1,4 +1,8 @@
-# Handshake — CAP Integration Auditor
+<p align="center">
+  <img src="assets/handshake-logo-512.png" width="120" alt="Handshake">
+</p>
+
+<h1 align="center">Handshake — CAP Integration Auditor</h1>
 
 **A paid, CAP-callable agent that audits other agents' CAP integrations and issues signed, independently verifiable attestations.**
 

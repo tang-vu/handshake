@@ -34,6 +34,7 @@ export function renderTraceHtml(args: {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <title>Handshake trace ${esc(args.jobId)}</title>
 <style>
   body{font-family:ui-sans-serif,system-ui,sans-serif;margin:2rem auto;max-width:70rem;padding:0 1rem;color:#1a1a1a;background:#fafafa}

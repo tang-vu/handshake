@@ -11,10 +11,16 @@ import { BaseChainVerifier } from './cap/chain-verifier.js';
 import { DryrunCapClient, DryrunChainVerifier } from './cap/dryrun-client.js';
 import { badgeData, badgeSvg } from './attest/badge.js';
 import { renderTraceHtml } from './views/trace-viewer-html.js';
+import { faviconSvg, logoSvg } from './views/brand-assets.js';
 
 const app = new Hono();
 
 app.get('/healthz', (c) => c.json({ ok: true, mode: config.mode, agent_id: config.handshakeAgentId }));
+
+const svgHeaders = { 'content-type': 'image/svg+xml', 'cache-control': 'public, max-age=86400' } as const;
+app.get('/favicon.svg', (c) => c.body(faviconSvg, 200, svgHeaders));
+app.get('/favicon.ico', (c) => c.body(faviconSvg, 200, svgHeaders));
+app.get('/logo.svg', (c) => c.body(logoSvg, 200, svgHeaders));
 
 app.get('/report/:job_id', (c) => {
   const row = repo.getReport(c.req.param('job_id'));

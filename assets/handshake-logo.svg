@@ -1,0 +1,17 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6366F1"/>
+      <stop offset="0.55" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#06B6D4"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#bg)"/>
+  <g stroke="#FFFFFF" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- code brackets = integration -->
+    <path d="M 170 148 L 120 148 L 120 364 L 170 364" stroke-width="46"/>
+    <path d="M 342 148 L 392 148 L 392 364 L 342 364" stroke-width="46"/>
+    <!-- checkmark = audit passed -->
+    <path d="M 198 260 L 238 306 L 316 206" stroke-width="50"/>
+  </g>
+</svg>
