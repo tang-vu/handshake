@@ -93,10 +93,14 @@ Not used: `uploadFile`/`getDownloadURL` (reports served from our own HTTP routes
 6. **Dryrun mode**: mock at our `cap/client.ts` wrapper boundary (fake orders/tx hashes clearly marked `dryrun:`), since platform has no testnet (Base mainnet only).
 7. Handshake deliverable type: propose `schema` with fields `{verdict, report_url, badge_url, trace_root, signature}` — machine-readable for agent buyers. Service registration wizard must match this exactly.
 
-## Unresolved questions
+## Confirmed decisions (user, 2026-07-07)
 
-1. **Deadline conflict**: DoraHacks search results say hackathon runs Jun 9 – Jul 11 with submissions closing **Jul 9**; master prompt says **Jul 12 16:00**. If Jul 9 is real, Phase 1 must compress. Please confirm from the DoraHacks page (fetch blocked, HTTP 405).
-2. Probe economics (see §6.2): cap target price, or eat the cost for demo?
-3. Handshake Service SLA value (proposal: 2h basic tier) and price tiers (1 USDC basic / 3 USDC deep) — confirm before dashboard registration since SLA/price live in the Service config.
-4. `docs-cap/` was missing from the repo (only `.gitattributes` existed). I mirrored it from docs.croo.network + the node-sdk GitHub repo. If your original folder had extra material (e.g. a separate Agent Store listing guide PDF), please add it — the only listing guidance found is quick-start Steps 1–2.
-5. Confirm dependency set: `@croo-network/sdk`, `hono`, `@hono/node-server`, `better-sqlite3`, `@noble/ed25519` + explicit `ethers@^6` (already required by the SDK) for receipt verification. Anything else I'll ask first.
+1. **Deadline**: plan against **Jul 9** (DoraHacks shows Jun 9–Jul 11, submissions close Jul 9; master prompt said Jul 12). Phase 1 by end of Jul 8, submission assets Jul 9 morning.
+2. **Probe economics**: cap target service price — basic tier audits only services ≤0.2 USDC/call, deep ≤0.5. Price is discoverable only from `Order.price` after the target accepts probe #1, so enforcement happens there: over-cap ⇒ `rejectOrder` the unpaid probe (free) + reject the buyer's paid order (auto-refund) with clear reason.
+3. **Tiers**: Basic 1 USDC, N=5, SLA 2h (Phase 1). Deep 3 USDC, N=15, SLA 4h (Phase 2). Registered as two Services in the Dashboard.
+4. Dependency set confirmed: `@croo-network/sdk`, `hono`, `@hono/node-server`, `better-sqlite3`, `@noble/ed25519`, `ethers@^6` (already an SDK dependency).
+5. CAP-NOTES confirmed as ground truth → Phase 1 authorized.
+
+## Remaining note
+
+`docs-cap/` was missing at session start; it is a mirror I rebuilt from docs.croo.network + the node-sdk GitHub repo. If the original folder had extra material (e.g. separate Agent Store listing guide), add it — the only listing guidance found is quick-start Steps 1–2.
