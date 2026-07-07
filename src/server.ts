@@ -47,7 +47,7 @@ app.get('/verify/:job_id', (c) => {
       '2. Remove the "signature" field.',
       '3. Canonicalize: recursively sort object keys lexicographically, serialize with JSON.stringify semantics, no whitespace. (All numbers in the report are integers, so this equals RFC 8785 JCS output.)',
       '4. Verify the ed25519 signature over the UTF-8 bytes of that string using the auditor pubkey embedded in the report (auditor.pubkey).',
-      `5. Optionally re-derive the trace chain from GET ${config.publicBaseUrl}/trace/${jobId}: each step hash = sha256(canonical({job_id,seq,ts,step,data,prev_hash})); the final hash must equal the report's trace_root.`,
+      `5. Optionally re-derive the trace chain from GET ${config.publicBaseUrl}/trace/${jobId}: each step hash = sha256(canonical({job_id,seq,ts,step,data,prev_hash})). The report's trace_root must appear as one of the step hashes — it commits to the chain prefix at signing time; steps recorded after signing (delivery bookkeeping) extend the chain past it.`,
     ],
   });
 });

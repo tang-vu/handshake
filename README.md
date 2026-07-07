@@ -153,7 +153,7 @@ console.log(verify(
 )); // → true
 ```
 
-The reasoning trace is verifiable the same way: each step's hash is `sha256(canonical({job_id, seq, ts, step, data, prev_hash}))`; replay the chain from `GET /trace/:job_id` and the final hash must equal the report's `trace_root`. On-chain facts need no trust at all — every `tx_hash` in `checks.settlement` is a public Base transaction.
+The reasoning trace is verifiable the same way: each step's hash is `sha256(canonical({job_id, seq, ts, step, data, prev_hash}))`; replay the chain from `GET /trace/:job_id` and the report's `trace_root` must appear as one of the step hashes (it commits to the chain prefix at signing time — the delivery-bookkeeping steps recorded after signing extend the chain past it). Or just run `npx tsx scripts/verify-report-offline.ts <report-url>`. On-chain facts need no trust at all — every `tx_hash` in `checks.settlement` is a public Base transaction.
 
 ## License
 

@@ -1,6 +1,6 @@
 # Handshake — CAP Integration Auditor — Plan
 
-Ground truth: `docs/CAP-NOTES.md` (confirmed 2026-07-07). Deadline: submissions close **2026-07-09** (confirmed plan basis).
+Ground truth: `docs/CAP-NOTES.md` (confirmed 2026-07-07). Deadline: **2026-07-12 09:00 UTC (16:00 VN)** — resolved 2026-07-07 via targeted DoraHacks search; earlier "Jul 9" result was a different (Qwen) hackathon. Everything shipped early against the precautionary Jul 9 pacing anyway.
 
 ## Decisions (user-confirmed, sticky)
 - Deadline Jul 9 → Phase 1 by EOD Jul 8, assets Jul 9 AM
