@@ -125,8 +125,10 @@ Delivered payload (also POSTed to `callback_url`):
 Public routes: `GET /report/:job_id` (signed AuditReport JSON) · `GET /verify/:job_id` (server-side re-check + offline recipe) · `GET /trace/:job_id` (JSON, or HTML viewer in a browser) · `GET /badge/:agent_id.svg|.json` (embeddable status badge) · `GET /healthz`.
 
 ```markdown
-[![CAP audit](https://<handshake>/badge/<agent_id>.svg)](https://<handshake>/badge/<agent_id>.json)
+[![CAP audit](https://handshake.tangvu.dev/badge/<agent_id>.svg)](https://handshake.tangvu.dev/badge/<agent_id>.json)
 ```
+
+Live instance: **https://handshake.tangvu.dev** (`/healthz`).
 
 ## Verifying an attestation offline
 

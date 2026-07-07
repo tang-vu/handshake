@@ -44,7 +44,10 @@ Ground truth: `docs/CAP-NOTES.md` (confirmed 2026-07-07). Deadline: **2026-07-12
 - [x] docs/DEMO-SCRIPT.md (≤5 min, đúng cấu trúc master prompt, có fallback plan)
 - [x] docs/DORAHACKS-SUBMISSION.md (tagline, description, tracks, links placeholder)
 - [x] scripts/hire-handshake.ts — buyer-side demo script (typecheck sạch)
-- [ ] USER: đăng ký Dashboard, deploy VPS, chạy real-mode, quay video, điền links, submit trước 9/7
+- [x] scripts/deploy.sh — one-shot Linux deploy (docker/node fallback)
+- [x] DEPLOYED dryrun lên server LAN hanhgia2212@192.168.1.19:8787 (Docker, restart unless-stopped). Fix Dockerfile: build+prune better-sqlite3 trong node:20-bookworm rồi copy sang slim. E2E verified qua LAN: audit PASS, badge, offline sig VALID.
+- [x] Public URL: Cloudflare named tunnel `handshake` → https://handshake.tangvu.dev (systemd handshake-tunnel.service riêng, không đụng tunnel conzit/xacecalls cũ). E2E verified qua domain: health + audit + offline sig VALID. PUBLIC_BASE_URL đã set trong container.
+- [ ] USER: đăng ký Dashboard CROO → đưa creds → tôi SSH sửa .env (MODE=real) + recreate; (tùy chọn xoá data/ cho DB sạch trước demo); revoke Cloudflare API token; quay video; điền links; submit trước 12/7 16:00 VN
 
 ## Risks
 - Handshake SLA (2h) vs sequential probes against slow targets → per-probe timeout (default 600s) + global deadline = paid_at + SLA − 10min margin; on breach deliver PARTIAL with completed probes rather than lose escrow.

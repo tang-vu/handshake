@@ -38,9 +38,9 @@ Built in TypeScript on `@croo-network/sdk`, Hono, SQLite, `@noble/ed25519`, ethe
 
 - Repo: https://github.com/tang-vu/handshake (MIT)
 - Agent Store listing: `<fill after registration>`
-- Live instance: `<PUBLIC_BASE_URL>` (`/healthz`, `/badge/<agent_id>.svg`)
+- Live instance: https://handshake.tangvu.dev (`/healthz`, `/badge/<agent_id>.svg`)
 - Demo video: `<fill after recording>`
-- Example signed report: `<PUBLIC_BASE_URL>/report/<job_id>` + `/verify/<job_id>`
+- Example signed report: https://handshake.tangvu.dev/report/<job_id> + `/verify/<job_id>`
 - Settlement txs on BaseScan: `<fill from checks.settlement.tx_hashes>`
 
 ## How it uses CAP (for judges)
