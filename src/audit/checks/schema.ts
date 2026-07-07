@@ -40,15 +40,14 @@ export function checkSchema(probes: ProbeRow[]): SchemaCheck {
       violations.push(`${label}: stored delivery snapshot is corrupt`);
       continue;
     }
-    if (d.deliverableType !== 'text' && d.deliverableType !== 'schema') {
-      violations.push(`${label}: unknown deliverable type "${d.deliverableType}" (expected "text" or "schema")`);
-      continue;
-    }
-    if (d.deliverableType === 'text' && d.deliverableText.trim() === '') {
-      violations.push(`${label}: text deliverable is empty`);
-    }
+    const hasText = d.deliverableText.trim() !== '';
+    const hasSchema = d.deliverableSchema.trim() !== '';
+    // Known CAP deliverable types across client surfaces: node SDK exposes
+    // text/schema; the CROO MCP server exposes text/url. An unknown type name
+    // is not itself a failure — the order settled on-chain — but the delivery
+    // must still carry readable content and an on-chain content hash.
     if (d.deliverableType === 'schema') {
-      if (d.deliverableSchema.trim() === '') {
+      if (!hasSchema) {
         violations.push(`${label}: schema deliverable is empty`);
       } else {
         try {
@@ -60,6 +59,10 @@ export function checkSchema(probes: ProbeRow[]): SchemaCheck {
           violations.push(`${label}: schema deliverable is not valid JSON`);
         }
       }
+    } else if (d.deliverableType === 'text' || d.deliverableType === 'url') {
+      if (!hasText) violations.push(`${label}: ${d.deliverableType} deliverable has empty content`);
+    } else if (!hasText && !hasSchema) {
+      violations.push(`${label}: deliverable type "${d.deliverableType}" carries no readable content`);
     }
     if (!d.contentHash) {
       violations.push(`${label}: missing on-chain content hash`);

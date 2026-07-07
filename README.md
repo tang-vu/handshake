@@ -65,7 +65,7 @@ cp .env.example .env           # fill in the values below
 | `ED25519_PRIVATE_KEY_HEX` | Attestation signing key from `npm run keygen` |
 | `PUBLIC_BASE_URL` | Public URL where report/verify/badge routes are reachable |
 
-Dashboard service config (must match the tiers): **basic** = 1.00 USDC, SLA 2h, Deliverable `Schema` (fields: `verdict`, `report_url`, `verify_url`, `trace_root`, `signature`, `pubkey`), Requirements `Text`. **deep** = 3.00 USDC, SLA 4h, same shapes. Fund Handshake's **AA wallet** with USDC for probe payments (each probe pays the target's price; caps: ≤0.20 USDC/call basic, ≤0.50 deep — pricier targets are refused with a full refund).
+Dashboard service config (must match the tiers): **basic** = 1.00 USDC, SLA 2h, Deliverable `Text` (a JSON receipt — see below), Requirements `Text`. **deep** = 3.00 USDC, SLA 4h, same shapes. Fund Handshake's **AA wallet** with USDC for probe payments (each probe pays the target's price; caps: ≤0.20 USDC/call basic, ≤0.50 deep — pricier targets are refused with a full refund).
 
 ```bash
 npm run dev                    # local development
@@ -109,18 +109,24 @@ const neg = await client.negotiateOrder({
 // then payOrder when the order is created; keep your target agent ONLINE during the audit
 ```
 
-Delivered payload (also POSTed to `callback_url`):
+Delivered as a `text` deliverable — a JSON receipt string (also POSTed to `callback_url`). `JSON.parse` it:
 
 ```json
 {
+  "handshake_audit": "v1",
   "verdict": "PASS",
-  "report_url": "https://<handshake>/report/<job_id>",
-  "verify_url": "https://<handshake>/verify/<job_id>",
-  "trace_root": "sha256:…",
-  "signature": "ed25519:…",
-  "pubkey": "ed25519:…"
+  "subject": { "agent_id": "…", "service_id": "…" },
+  "checks": { "callable": true, "schema": true, "settlement": true, "latency": true, "reliability": true },
+  "metrics": { "latency_p95_ms": 2044, "reliability": "0/5 probe calls failed", "settlement_tx_count": 10 },
+  "remediation": [],
+  "report_url": "https://handshake.tangvu.dev/report/<job_id>",
+  "verify_url": "https://handshake.tangvu.dev/verify/<job_id>",
+  "trace_url": "https://handshake.tangvu.dev/trace/<job_id>",
+  "signed_report": { "trace_root": "sha256:…", "pubkey": "ed25519:…", "signature": "ed25519:…" }
 }
 ```
+
+The receipt is a self-describing summary; `signed_report.signature` (with `pubkey`) commits to the full report at `report_url`, verifiable offline.
 
 Public routes: `GET /report/:job_id` (signed AuditReport JSON) · `GET /verify/:job_id` (server-side re-check + offline recipe) · `GET /trace/:job_id` (JSON, or HTML viewer in a browser) · `GET /badge/:agent_id.svg|.json` (embeddable status badge) · `GET /healthz`.
 

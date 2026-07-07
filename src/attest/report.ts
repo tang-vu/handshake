@@ -109,14 +109,43 @@ export function buildSignedReport(input: ReportInputs): Record<string, unknown> 
   return report;
 }
 
-// The structured payload delivered back through CAP to the buyer.
+// The receipt delivered back through CAP to the buyer, as a JSON string.
+//
+// Delivered with deliverableType "text" (not "schema") for maximum client
+// compatibility: text is the common denominator every CAP client can read —
+// the node SDK's deliverableText, and the CROO MCP server's deliverable_text.
+// A buyer just JSON.parses this.
+//
+// It is a self-describing receipt, not the full report: the verdict + per-check
+// summary are inline so the buyer sees the outcome immediately, while the
+// ed25519 signature and pubkey commit to the full report fetched at report_url.
 export function deliverablePayload(report: Record<string, unknown>): string {
+  const checks = report.checks as Record<string, any>;
+  const pass = (name: string) => Boolean(checks?.[name]?.pass);
   return JSON.stringify({
+    handshake_audit: 'v1',
     verdict: report.verdict,
+    subject: report.subject,
+    checks: {
+      callable: pass('callable'),
+      schema: pass('schema'),
+      settlement: pass('settlement'),
+      latency: pass('latency_ms'),
+      reliability: pass('reliability'),
+    },
+    metrics: {
+      latency_p95_ms: checks?.latency_ms?.p95 ?? null,
+      reliability: `${checks?.reliability?.errors ?? 0}/${checks?.reliability?.calls ?? 0} probe calls failed`,
+      settlement_tx_count: (checks?.settlement?.tx_hashes ?? []).length,
+    },
+    remediation: report.remediation,
     report_url: report.report_url,
     verify_url: report.verify_url,
-    trace_root: report.trace_root,
-    signature: report.signature,
-    pubkey: (report.auditor as Record<string, unknown>).pubkey,
+    trace_url: report.trace_url,
+    signed_report: {
+      trace_root: report.trace_root,
+      pubkey: (report.auditor as Record<string, unknown>).pubkey,
+      signature: report.signature,
+    },
   });
 }

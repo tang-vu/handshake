@@ -91,7 +91,7 @@ Not used: `uploadFile`/`getDownloadURL` (reports served from our own HTTP routes
 4. **C4 latency semantics**: measure per-probe (a) `order_paid`→`order_completed` (target work time, fair) and report both p50/p95; full negotiate→delivery includes chain+platform overhead outside target's control.
 5. **Two-sided mechanic confirmed by protocol**: Handshake-as-provider earns into its AA wallet; Handshake-as-requester spends from the same AA wallet. On-chain explorer shows both directions on one address — matches demo script beat at 4:15.
 6. **Dryrun mode**: mock at our `cap/client.ts` wrapper boundary (fake orders/tx hashes clearly marked `dryrun:`), since platform has no testnet (Base mainnet only).
-7. Handshake deliverable type: propose `schema` with fields `{verdict, report_url, badge_url, trace_root, signature}` — machine-readable for agent buyers. Service registration wizard must match this exactly.
+7. Handshake deliverable type: **`text`** (a JSON receipt string). Chosen over `schema` for cross-client compatibility — the node SDK exposes text/schema, the CROO MCP server exposes text/url; `text` is the common denominator every buyer can read. Register the service with Deliverable = **Text**. Receipt shape built in `attest/report.ts:deliverablePayload` (verdict, subject, per-check booleans, metrics, remediation, report/verify/trace URLs, signed_report{trace_root,pubkey,signature}).
 
 ## Confirmed decisions (user, 2026-07-07)
 

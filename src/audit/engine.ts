@@ -181,9 +181,11 @@ export class AuditEngine {
     });
     appendTrace(jobId, 'report_signed', { verdict: report.verdict, trace_root: report.trace_root });
 
+    // Deliver as text (JSON string) — the common denominator every CAP client
+    // reads (node SDK deliverableText, MCP server deliverable_text).
     const { txHash } = await this.cap.deliverOrder(ourOrder.orderId, {
-      deliverableType: 'schema',
-      deliverableSchema: deliverablePayload(report),
+      deliverableType: 'text',
+      deliverableText: deliverablePayload(report),
     });
     appendTrace(jobId, 'report_delivered', { deliver_tx_hash: txHash });
     repo.setJobStatus(jobId, 'delivered');
