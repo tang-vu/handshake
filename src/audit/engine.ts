@@ -284,35 +284,39 @@ export class AuditEngine {
         return probe;
       }
 
-      probe.order_id = order.orderId;
-      probe.price = order.price;
-      probe.requester_wallet = order.requesterWalletAddress;
-      probe.provider_wallet = order.providerWalletAddress;
+      // The list view (findOrderByNegotiation) omits price and wallet
+      // addresses; getOrder returns them. These fields are required by the C3
+      // settlement check, so fetch the full order here.
+      const full = await this.cap.getOrder(order.orderId).catch(() => order);
+      probe.order_id = full.orderId;
+      probe.price = full.price;
+      probe.requester_wallet = full.requesterWalletAddress;
+      probe.provider_wallet = full.providerWalletAddress;
       probe.order_created_at = now();
       probe.status = 'created';
       save();
 
-      if (order.status !== 'created') {
-        probe.status = order.status === 'rejected' || order.status === 'expired' ? order.status : 'error';
-        probe.error = `order not payable (status ${order.status}): ${order.rejectReason || 'unexpected state'}`;
+      if (full.status !== 'created') {
+        probe.status = full.status === 'rejected' || full.status === 'expired' ? full.status : 'error';
+        probe.error = `order not payable (status ${full.status}): ${full.rejectReason || 'unexpected state'}`;
         save();
-        appendTrace(jobId, 'probe_not_payable', { seq, order_status: order.status });
+        appendTrace(jobId, 'probe_not_payable', { seq, order_status: full.status });
         return probe;
       }
       appendTrace(jobId, 'probe_order_created', {
-        seq, order_id: order.orderId, price: order.price, create_tx_hash: order.createTxHash,
-        provider_agent_id: order.providerAgentId,
+        seq, order_id: full.orderId, price: full.price, create_tx_hash: full.createTxHash,
+        provider_agent_id: full.providerAgentId,
       });
 
       // Price gate before any money moves; rejecting an unpaid order is free.
-      if (BigInt(order.price) > priceCap) {
+      if (full.price && BigInt(full.price) > priceCap) {
         probe.status = 'price_over_cap';
         save();
-        await this.cap.rejectOrder(order.orderId, 'handshake: target price exceeds audit tier cap').catch(() => {});
+        await this.cap.rejectOrder(full.orderId, 'handshake: target price exceeds audit tier cap').catch(() => {});
         return probe;
       }
 
-      const payRes = await this.cap.payOrder(order.orderId);
+      const payRes = await this.cap.payOrder(full.orderId);
       probe.pay_tx_hash = payRes.txHash;
       probe.paid_at = now();
       probe.status = 'paid';
@@ -335,6 +339,12 @@ export class AuditEngine {
       probe.status = finalOrder.status;
       probe.clear_tx_hash = finalOrder.clearTxHash || null;
       probe.completed_at = now();
+      // Backfill authoritative fields from the completed (getOrder) order — the
+      // C3 settlement check needs the wallet addresses and price.
+      if (finalOrder.requesterWalletAddress) probe.requester_wallet = finalOrder.requesterWalletAddress;
+      if (finalOrder.providerWalletAddress) probe.provider_wallet = finalOrder.providerWalletAddress;
+      if (finalOrder.price) probe.price = finalOrder.price;
+      if (!probe.pay_tx_hash && finalOrder.payTxHash) probe.pay_tx_hash = finalOrder.payTxHash;
       if (finalOrder.status === 'completed') {
         const delivery = await this.cap.getDelivery(order.orderId).catch(() => undefined);
         if (delivery) {

@@ -76,8 +76,10 @@ export const config = {
     },
   },
 
-  // C4: p95 of target's paid→completed latency must stay under this.
-  latencyP95ThresholdMs: Number(process.env.LATENCY_P95_THRESHOLD_MS ?? 60_000),
+  // C4: p95 of target's paid→completed latency must stay under this. CROO's
+  // on-chain createOrder + delivery settlement alone is ~90s, so the default
+  // accounts for that platform baseline (override for stricter SLAs).
+  latencyP95ThresholdMs: Number(process.env.LATENCY_P95_THRESHOLD_MS ?? 180_000),
 
   // Engine timing
   pollIntervalMs: Number(process.env.POLL_INTERVAL_MS ?? 3000),
