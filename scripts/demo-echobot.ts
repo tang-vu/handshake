@@ -46,7 +46,7 @@ async function main(): Promise<void> {
   const acceptedProbes = new Set<string>();
   const deliveredProbes = new Set<string>();
   let hirePaid = false;
-  const deadline = Date.now() + 5 * 60 * 1000;
+  const deadline = Date.now() + 15 * 60 * 1000;
 
   while (Date.now() < deadline) {
     try {
