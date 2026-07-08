@@ -37,6 +37,7 @@ Constraints (verified in SDK source `ws.ts`, `faq.md`):
 - Settlement: `deliverOrder` writes deliverable keccak256 hash on-chain → CAPVault splits: platform fee → Treasury, remainder → provider AA wallet. Order `completed`.
 - Refunds: provider reject after paid, or SLA timeout ⇒ automatic full refund to requester. **Handshake is paid only if it delivers the report within its own SLA.**
 - Requester cannot reject after paying. `payOrder`/`deliverOrder` idempotent-retryable on revert.
+- **VERIFIED 2026-07-08 (empirical):** gas is sponsored via an **ERC-20 USDC paymaster** (PIMLICO), so the AA wallet must hold **USDC before ANY operation** — even `acceptNegotiation`/`createOrder`. An empty wallet fails with `PIMLICO_ERROR: sender has no balance of the token for ERC20 sponsorship`. The docs' "developers don't need to hold ETH" is true (no ETH needed), but USDC must be present up front; a little USDC is also consumed as gas per op. Real REST base path is `https://api.croo.network/backend/v1/...`.
 - **No concurrent `payOrder` from one wallet** (AA nonce collision → `NONCE_ERROR`) → probe calls must be sequential.
 
 ## 4. How to verify a settlement tx on-chain (check C3)
