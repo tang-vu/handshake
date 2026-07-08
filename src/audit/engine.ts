@@ -265,9 +265,12 @@ export class AuditEngine {
       probe.negotiation_id = neg.negotiationId;
       save();
 
+      // Wait until the order leaves 'creating' (the on-chain createOrder is
+      // still pending in that state) — paying a 'creating' order is rejected
+      // with INVALID_STATUS "order can only be paid when status is created".
       const order = await this.waitFor(
         () => this.cap.findOrderByNegotiation(neg.negotiationId),
-        (o) => o !== undefined,
+        (o) => o !== undefined && o.status !== 'creating',
         Math.min(config.probeOrderCreateTimeoutMs, deadline - Date.now())
       );
       if (!order) {
@@ -275,7 +278,7 @@ export class AuditEngine {
         probe.status = finalNeg.status === 'rejected' ? 'rejected' : 'expired';
         probe.error = finalNeg.status === 'rejected'
           ? `negotiation rejected: ${finalNeg.rejectReason}`
-          : 'no on-chain order within timeout (target did not accept)';
+          : 'no payable on-chain order within timeout (target did not accept)';
         save();
         appendTrace(jobId, 'probe_no_order', { seq, negotiation_status: finalNeg.status });
         return probe;
@@ -288,6 +291,14 @@ export class AuditEngine {
       probe.order_created_at = now();
       probe.status = 'created';
       save();
+
+      if (order.status !== 'created') {
+        probe.status = order.status === 'rejected' || order.status === 'expired' ? order.status : 'error';
+        probe.error = `order not payable (status ${order.status}): ${order.rejectReason || 'unexpected state'}`;
+        save();
+        appendTrace(jobId, 'probe_not_payable', { seq, order_status: order.status });
+        return probe;
+      }
       appendTrace(jobId, 'probe_order_created', {
         seq, order_id: order.orderId, price: order.price, create_tx_hash: order.createTxHash,
         provider_agent_id: order.providerAgentId,
