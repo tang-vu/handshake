@@ -128,12 +128,29 @@ if (config.mode === 'dryrun') {
   });
 }
 
+// Connect to CAP with exponential backoff. Non-fatal: the public report/verify/
+// badge routes must stay available even if the CROO WebSocket is unreachable.
+async function connectCapWithRetry(): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await cap.start((e) => engine.handleIntake(e));
+      console.log('handshake: CAP connected, listening for audit negotiations');
+      return;
+    } catch (err: any) {
+      const delay = Math.min(30_000, 2 ** attempt * 1000);
+      console.error(`handshake: CAP connect failed (retry in ${delay}ms):`, err?.message ?? err);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+}
+
 async function main(): Promise<void> {
   engine.abortStaleJobs();
-  await cap.start((e) => engine.handleIntake(e));
+  // HTTP first so public routes are up immediately, then CAP in the background.
   serve({ fetch: app.fetch, port: config.port }, (info) => {
     console.log(`handshake: ${config.mode} mode, listening on :${info.port}, public base ${config.publicBaseUrl}`);
   });
+  void connectCapWithRetry();
 }
 
 main().catch((err) => {
