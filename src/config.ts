@@ -21,6 +21,14 @@ function required(name: string): string {
 const mode = (process.env.MODE ?? 'dryrun') as 'real' | 'dryrun';
 if (mode !== 'real' && mode !== 'dryrun') throw new Error(`config: MODE must be "real" or "dryrun", got "${mode}"`);
 
+// Optional env var: empty/unset or the ".env.example" placeholder means "not
+// set" — in real mode that yields '' (self-configure); in dryrun a stub value.
+function optionalEnv(name: string, dryrunDefault: string): string {
+  const v = process.env[name];
+  if (!v || v === 'replace_me') return mode === 'dryrun' ? dryrunDefault : '';
+  return v;
+}
+
 export const config = {
   mode,
   port: Number(process.env.PORT ?? 8787),
@@ -36,11 +44,12 @@ export const config = {
   // Handshake can self-configure from just the SDK key. When unset, the agent
   // id is derived from the first negotiation's provider_agent_id, and every
   // incoming negotiation is treated as the basic tier (single-service default).
-  handshakeAgentId: process.env.HANDSHAKE_AGENT_ID ?? (mode === 'dryrun' ? 'dryrun-handshake-agent' : ''),
-  basicServiceId: process.env.BASIC_SERVICE_ID ?? (mode === 'dryrun' ? 'dryrun-basic-service' : ''),
+  // The literal ".env.example" placeholder is treated as unset.
+  handshakeAgentId: optionalEnv('HANDSHAKE_AGENT_ID', 'dryrun-handshake-agent'),
+  basicServiceId: optionalEnv('BASIC_SERVICE_ID', 'dryrun-basic-service'),
   // Deep tier is optional: leave DEEP_SERVICE_ID unset until the service is
   // registered in the Dashboard; negotiations for it are simply not matched.
-  deepServiceId: process.env.DEEP_SERVICE_ID ?? (mode === 'dryrun' ? 'dryrun-deep-service' : ''),
+  deepServiceId: optionalEnv('DEEP_SERVICE_ID', 'dryrun-deep-service'),
 
   baseRpcUrl: process.env.BASE_RPC_URL ?? 'https://mainnet.base.org',
   ed25519PrivateKeyHex: required('ED25519_PRIVATE_KEY_HEX'),
