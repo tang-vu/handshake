@@ -61,7 +61,18 @@ export class AuditEngine {
     }
     const intake = parsed.intake;
 
-    const { order } = await this.cap.acceptNegotiation(negotiationId);
+    // Accepting submits the on-chain createOrder. It can fail for reasons
+    // outside our control (e.g. the buyer's AA wallet has no USDC for the
+    // ERC-20 paymaster). Reject cleanly instead of leaving the buyer hanging.
+    let order;
+    try {
+      ({ order } = await this.cap.acceptNegotiation(negotiationId));
+    } catch (err: any) {
+      const msg = err?.reason ? `${err.reason}: ${err.message}` : String(err?.message ?? err);
+      console.error(`engine: acceptNegotiation failed for ${negotiationId}: ${msg}`);
+      await this.cap.rejectNegotiation(negotiationId, `handshake: cannot start audit — ${msg}`).catch(() => {});
+      return;
+    }
     const jobId = randomUUID();
     repo.createJob({
       job_id: jobId,
