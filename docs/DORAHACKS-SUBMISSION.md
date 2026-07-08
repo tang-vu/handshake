@@ -40,8 +40,11 @@ Built in TypeScript on `@croo-network/sdk`, Hono, SQLite, `@noble/ed25519`, ethe
 - Agent Store listing: `<fill after registration>`
 - Live instance: https://handshake.tangvu.dev (`/healthz`, `/badge/<agent_id>.svg`)
 - Demo video: `<fill after recording>`
-- Example signed report: https://handshake.tangvu.dev/report/<job_id> + `/verify/<job_id>`
-- Settlement txs on BaseScan: `<fill from checks.settlement.tx_hashes>`
+- **Example signed PASS report** (real audit, 5 probes, USDC settled on Base):
+  - https://handshake.tangvu.dev/report/f4cb65bd-38af-454d-a57d-d046f880f607
+  - https://handshake.tangvu.dev/verify/f4cb65bd-38af-454d-a57d-d046f880f607
+  - https://handshake.tangvu.dev/trace/f4cb65bd-38af-454d-a57d-d046f880f607
+- **Real USDC settlement tx (BaseScan)**: hire payment `0x61ce850429c50612c371d6417b131f8ad14a716be55e54044fab708a7fad768e`; probe escrow-lock `0x7852970388a115621a674ef6c7693ba31667b2c937d69fd1e9dd2cfa1f86a7f1` (10 settlement txs total in the report's `checks.settlement.tx_hashes`).
 
 ## How it uses CAP (for judges)
 

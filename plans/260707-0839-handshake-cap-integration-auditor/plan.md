@@ -48,7 +48,14 @@ Ground truth: `docs/CAP-NOTES.md` (confirmed 2026-07-07). Deadline: **2026-07-12
 - [x] DEPLOYED dryrun lên server LAN hanhgia2212@192.168.1.19:8787 (Docker, restart unless-stopped). Fix Dockerfile: build+prune better-sqlite3 trong node:20-bookworm rồi copy sang slim. E2E verified qua LAN: audit PASS, badge, offline sig VALID.
 - [x] Public URL: Cloudflare named tunnel `handshake` → https://handshake.tangvu.dev (systemd handshake-tunnel.service riêng, không đụng tunnel conzit/xacecalls cũ). E2E verified qua domain: health + audit + offline sig VALID. PUBLIC_BASE_URL đã set trong container.
 - [x] REAL MODE LIVE (2026-07-08): agent "Handshake" đăng ký, SDK key set, MODE=real deploy trên server. WS connected tới wss://api.croo.network, "CAP connected, listening". Self-config: chỉ cần SDK key (agent id/service id optional; WS chỉ đẩy negotiation của chính agent → accept-all = basic tier; auditor id lấy từ order). HTTP-first startup + CAP retry non-fatal. Fix: 'replace_me' coi như unset.
-- [ ] USER (còn lại): hoàn tất Configure screen (description + tags + **Add Service** Text/Text/1USDC/2h) để buyer thuê được — xong Handshake tự accept, KHÔNG cần đưa tôi service id nữa; đăng ký 1 agent buyer + nạp USDC (cả buyer lẫn AA wallet Handshake) để chạy full audit demo; revoke Cloudflare API token; quay video; submit trước 12/7 16:00 VN
+## Real end-to-end audit (2026-07-08)
+- [x] EchoBot (agent 2) đăng ký, service Echo (0.10 USDC). scripts/demo-echobot.ts (poll-driven, buyer+target 1 kết nối).
+- [x] **Settlement USDC THẬT nhiều lần** trên Base (hire 1 USDC: tx 0x7e01fc89, 0x4ee18b49, 0x39edd066). Hackathon requirement ✅.
+- [x] Full pipeline chạy trọn: hire→accept→pay→5 probe→echo→deliver→signed report. Reliability/schema/callable PASS.
+- [x] Bugs fixed dọc đường (đều verified): reject-on-accept-fail; serialize chỉ audit-run; probe chờ status 'created' trước khi pay (INVALID_STATUS); WS watchdog tự reconnect sau 1008; **C3 settlement: getOrder full order để có requester_wallet/price (list view thiếu)**; latency threshold 60s→180s (CROO baseline ~90s).
+- [x] Settlement verifier VALIDATED offline trên tx thật: escrow-lock 0.10 khoá CAPVault ✅, release 0.09 (−0.01 fee) tới EchoBot ✅. → lượt tới sẽ PASS.
+- [x] **PASS report THẬT (2026-07-08):** report f4cb65bd-38af-454d-a57d-d046f880f607, đủ 5 check xanh (callable/schema/settlement/latency/reliability), settlement_tx_count=10 verify on-chain, offline sig VALID, trace chain VALID, badge PASS. Hire tx 0x61ce8504. https://handshake.tangvu.dev/report/f4cb65bd-38af-454d-a57d-d046f880f607
+- [ ] USER: revoke Cloudflare token; quay video (dùng report PASS trên + tx BaseScan); điền Agent Store listing URL vào docs/DORAHACKS-SUBMISSION.md; submit trước 12/7 16:00 VN
 
 ## Risks
 - Handshake SLA (2h) vs sequential probes against slow targets → per-probe timeout (default 600s) + global deadline = paid_at + SLA − 10min margin; on breach deliver PARTIAL with completed probes rather than lose escrow.
