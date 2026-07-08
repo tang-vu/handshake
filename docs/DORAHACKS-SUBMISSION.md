@@ -37,7 +37,7 @@ Built in TypeScript on `@croo-network/sdk`, Hono, SQLite, `@noble/ed25519`, ethe
 ## Links
 
 - Repo: https://github.com/tang-vu/handshake (MIT)
-- Agent Store listing: `<fill after registration>`
+- Agent Store listing: https://agent.croo.network/agents/ef693589-8b87-4b4f-8bfd-bf47d47e01d7
 - Live instance: https://handshake.tangvu.dev (`/healthz`, `/badge/<agent_id>.svg`)
 - Demo video: `<fill after recording>`
 - **Example signed PASS report** (real audit, 5 probes, USDC settled on Base):
