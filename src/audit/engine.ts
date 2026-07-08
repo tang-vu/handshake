@@ -25,16 +25,25 @@ function tierForService(serviceId: string): Tier | undefined {
 }
 
 export class AuditEngine {
-  // Audits run strictly one at a time: concurrent payOrder calls from one AA
-  // wallet collide on the wallet nonce at the bundler (docs-cap/faq.md).
-  private tail: Promise<void> = Promise.resolve();
+  // Only the audit-execution phase is serialized: concurrent payOrder calls
+  // from one AA wallet collide on the wallet nonce at the bundler
+  // (docs-cap/faq.md). Intake acceptance and waiting for the buyer's payment
+  // run concurrently, so one unpaid job never blocks other audits.
+  private auditTail: Promise<void> = Promise.resolve();
 
   constructor(private cap: CapClient, private verifier: ChainVerifier) {}
 
   handleIntake(e: IntakeEvent): void {
-    this.tail = this.tail
-      .then(() => this.processIntake(e.negotiationId))
-      .catch((err) => console.error('engine: unhandled job error', err));
+    void this.processIntake(e.negotiationId).catch((err) =>
+      console.error('engine: unhandled job error', err)
+    );
+  }
+
+  // Serializes the probe-paying audit run; returns the promise for THIS run.
+  private enqueueAudit(fn: () => Promise<void>): Promise<void> {
+    const run = this.auditTail.then(fn);
+    this.auditTail = run.catch(() => {});
+    return run;
   }
 
   // Jobs left mid-flight by a previous process are aborted; the buyer's escrow
@@ -106,7 +115,8 @@ export class AuditEngine {
     repo.setJobStatus(jobId, 'auditing');
 
     try {
-      await this.runAudit(jobId, tierName, intake, paid);
+      // Serialize only the probe-paying run (AA-wallet nonce safety).
+      await this.enqueueAudit(() => this.runAudit(jobId, tierName, intake, paid));
     } catch (err: any) {
       // Integrity rule: if the audit itself breaks, refund the buyer rather
       // than deliver a report we can't stand behind.
