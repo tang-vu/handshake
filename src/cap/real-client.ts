@@ -9,6 +9,9 @@ import { config } from '../config.js';
 export class RealCapClient implements CapClient {
   private client: AgentClient;
   private stream: EventStream | null = null;
+  private onIntake: ((e: IntakeEvent) => void) | null = null;
+  private watchdog: ReturnType<typeof setInterval> | null = null;
+  private stopped = false;
 
   constructor() {
     this.client = new AgentClient(
@@ -18,12 +21,19 @@ export class RealCapClient implements CapClient {
   }
 
   async start(onIntake: (e: IntakeEvent) => void): Promise<void> {
-    this.stream = await this.client.connectWebSocket();
-    // Intake = negotiations for OUR services (the WS stream only ever delivers
-    // negotiations targeting this agent). Probe-order events are ignored here;
-    // the audit engine polls order state instead (WS is best-effort).
+    this.onIntake = onIntake;
+    await this.connect();
+    // Watchdog: the SDK does not reconnect after a policy-violation close
+    // (code 1008 — a stale duplicate connection, e.g. right after a restart
+    // before CROO drops the old socket). Poll health and reconnect until it
+    // sticks, so a transient 1008 never leaves the agent permanently deaf.
+    this.watchdog ??= setInterval(() => void this.ensureConnected(), 20_000);
+  }
+
+  private async connect(): Promise<void> {
+    const stream = await this.client.connectWebSocket();
     const serviceFilter = config.basicServiceId !== '' || config.deepServiceId !== '';
-    this.stream.on(EventType.NegotiationCreated, (e) => {
+    stream.on(EventType.NegotiationCreated, (e) => {
       if (!e.negotiation_id || !e.service_id) return;
       // Only filter when service ids are explicitly configured; otherwise accept
       // every incoming negotiation (self-configuring, single-service default).
@@ -32,11 +42,27 @@ export class RealCapClient implements CapClient {
           (config.deepServiceId !== '' && e.service_id === config.deepServiceId);
         if (!ours) return;
       }
-      onIntake({ negotiationId: e.negotiation_id, serviceId: e.service_id });
+      this.onIntake?.({ negotiationId: e.negotiation_id, serviceId: e.service_id });
     });
+    this.stream = stream;
+  }
+
+  private async ensureConnected(): Promise<void> {
+    if (this.stopped || !this.stream || this.stream.err() === null) return;
+    console.warn('handshake: CAP websocket unhealthy (likely stale 1008), reconnecting...');
+    try { this.stream.close(); } catch { /* ignore */ }
+    this.stream = null;
+    try {
+      await this.connect();
+      console.log('handshake: CAP websocket reconnected');
+    } catch (err: any) {
+      console.warn('handshake: CAP reconnect failed, will retry:', err?.message ?? err);
+    }
   }
 
   stop(): void {
+    this.stopped = true;
+    if (this.watchdog) { clearInterval(this.watchdog); this.watchdog = null; }
     this.stream?.close();
     this.stream = null;
   }
