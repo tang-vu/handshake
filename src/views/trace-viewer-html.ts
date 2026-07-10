@@ -1,9 +1,21 @@
 import type { TraceStepRow } from '../db/repo.js';
 import { esc } from './html-escape.js';
+import { renderPage } from './page-shell.js';
 
 // Server-rendered, dependency-free trace viewer. Shows the hash-chained
 // reasoning trace of one audit job so anyone can eyeball what Handshake did
 // and cross-check each step hash against the documented recipe.
+
+const CSS = `
+  .chainbar{border-radius:10px;padding:.7rem 1rem;font-weight:600;font-size:.92rem;margin:1rem 0}
+  .chainbar.ok{background:var(--good-bg);color:var(--good)}
+  .chainbar.bad{background:var(--crit-bg);color:var(--crit)}
+  td pre{margin:0;white-space:pre-wrap;word-break:break-word;font-size:.75rem;line-height:1.45}
+  .stepname{font-family:ui-monospace,monospace;font-size:.78rem;font-weight:600;white-space:nowrap}
+  .hash,.ts{font-family:ui-monospace,monospace;font-size:.72rem;white-space:nowrap;color:var(--ink2)}
+  .num{text-align:right;color:var(--ink3)}
+  .actions{display:flex;gap:.5rem;flex-wrap:wrap;margin:1.1rem 0 0}
+`;
 
 export function renderTraceHtml(args: {
   jobId: string;
@@ -13,47 +25,42 @@ export function renderTraceHtml(args: {
   reportUrl: string;
 }): string {
   const rows = args.steps
-    .map((s) => {
-      const data = JSON.stringify(JSON.parse(s.data_json), null, 1);
-      return `<tr>
+    .map((s) => `<tr>
   <td class="num">${s.seq}</td>
-  <td class="ts">${esc(s.ts)}</td>
-  <td class="step">${esc(s.step)}</td>
-  <td><pre>${esc(data)}</pre></td>
-  <td class="hash" title="${esc(s.hash)}">${esc(s.hash.slice(0, 26))}…</td>
-</tr>`;
-    })
+  <td class="ts">${esc(s.ts.slice(11, 19))}</td>
+  <td class="stepname">${esc(s.step)}</td>
+  <td><pre>${esc(JSON.stringify(JSON.parse(s.data_json), null, 1))}</pre></td>
+  <td class="hash" title="${esc(s.hash)}">${esc(s.hash.slice(0, 18))}…</td>
+</tr>`)
     .join('\n');
 
   const banner = args.chainValid
-    ? '<div class="ok">✔ hash chain verified server-side — every step commits to its predecessor</div>'
-    : '<div class="bad">✘ HASH CHAIN BROKEN — this trace has been tampered with or corrupted</div>';
+    ? '<div class="chainbar ok">✓ Hash chain verified server-side — every step commits to its predecessor</div>'
+    : '<div class="chainbar bad">✕ HASH CHAIN BROKEN — this trace has been tampered with or corrupted</div>';
 
-  return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<title>Handshake trace ${esc(args.jobId)}</title>
-<style>
-  body{font-family:ui-sans-serif,system-ui,sans-serif;margin:2rem auto;max-width:70rem;padding:0 1rem;color:#1a1a1a;background:#fafafa}
-  h1{font-size:1.2rem} code{background:#eee;padding:.1rem .3rem;border-radius:3px}
-  .ok{background:#e6f4ea;color:#137333;padding:.6rem 1rem;border-radius:6px;margin:1rem 0}
-  .bad{background:#fce8e6;color:#c5221f;padding:.6rem 1rem;border-radius:6px;margin:1rem 0}
-  table{border-collapse:collapse;width:100%;font-size:.85rem;background:#fff}
-  th,td{border:1px solid #ddd;padding:.4rem .6rem;text-align:left;vertical-align:top}
-  th{background:#f0f0f0} pre{margin:0;white-space:pre-wrap;word-break:break-word;font-size:.78rem}
-  .num{text-align:right} .hash,.ts{font-family:ui-monospace,monospace;font-size:.75rem;white-space:nowrap}
-  a{color:#1a5fb4}
-</style></head><body>
-<h1>Handshake — verifiable reasoning trace</h1>
-<p>Job <code>${esc(args.jobId)}</code> · trace root <code>${esc(args.traceRoot)}</code> · <a href="${esc(args.reportUrl)}">signed report</a></p>
+  const content = `
+<h1>Verifiable reasoning trace</h1>
+<p class="small muted">Job <span class="mono">${esc(args.jobId)}</span>
+· trace root <span class="mono">${esc(args.traceRoot.slice(0, 18))}…</span>
+· ${args.steps.length} steps</p>
 ${banner}
-<table>
-<thead><tr><th>#</th><th>timestamp</th><th>step</th><th>data</th><th>hash</th></tr></thead>
+<div class="table-wrap"><table>
+<thead><tr><th>#</th><th>Time</th><th>Step</th><th>Data</th><th>Hash</th></tr></thead>
 <tbody>
 ${rows}
 </tbody>
-</table>
-<p>Recompute offline: <code>hash = sha256(canonical({job_id, seq, ts, step, data, prev_hash}))</code> with lexicographically sorted keys; the last hash must equal the trace root embedded in the signed report.</p>
-</body></html>`;
+</table></div>
+<p class="small muted">Recompute offline: <code>hash = sha256(canonical({job_id, seq, ts, step, data, prev_hash}))</code>
+with lexicographically sorted keys; the signed report’s trace root must appear among the step hashes.</p>
+<div class="actions">
+  <a class="btn primary" href="${esc(args.reportUrl)}">Signed report</a>
+  <a class="btn ghost" href="${esc(args.reportUrl).replace('/report/', '/verify/')}">Verify</a>
+</div>`;
+
+  return renderPage({
+    title: `Trace ${args.jobId.slice(0, 8)} — Handshake`,
+    crumb: `trace · <span class="mono">${esc(args.jobId.slice(0, 8))}…</span>`,
+    extraCss: CSS,
+    content,
+  });
 }

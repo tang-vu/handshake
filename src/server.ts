@@ -12,9 +12,16 @@ import { DryrunCapClient, DryrunChainVerifier } from './cap/dryrun-client.js';
 import { badgeData, badgeSvg } from './attest/badge.js';
 import { renderTraceHtml } from './views/trace-viewer-html.js';
 import { renderLandingHtml } from './views/landing-page-html.js';
+import { renderReportHtml } from './views/report-viewer-html.js';
+import { renderVerifyHtml } from './views/verify-viewer-html.js';
 import { faviconSvg, logoSvg } from './views/brand-assets.js';
 
 const app = new Hono();
+
+// Browsers get HTML views; agents and curl keep getting the canonical JSON.
+// `?format=json` forces JSON even in a browser (linked as "Raw JSON").
+const wantsHtml = (c: { req: { query: (k: string) => string | undefined; header: (k: string) => string | undefined } }) =>
+  c.req.query('format') !== 'json' && (c.req.header('accept') ?? '').includes('text/html');
 
 app.get('/', (c) => c.html(renderLandingHtml({
   baseUrl: config.publicBaseUrl,
@@ -22,6 +29,7 @@ app.get('/', (c) => c.html(renderLandingHtml({
   pubkey: publicKeyHex(config.ed25519PrivateKeyHex),
   agentId: config.handshakeAgentId,
   reports: repo.getLatestReports(10),
+  stats: repo.getStats(),
 })));
 
 app.get('/healthz', (c) => c.json({
@@ -38,6 +46,7 @@ app.get('/logo.svg', (c) => c.body(logoSvg, 200, svgHeaders));
 app.get('/report/:job_id', (c) => {
   const row = repo.getReport(c.req.param('job_id'));
   if (!row) return c.json({ error: 'report not found' }, 404);
+  if (wantsHtml(c)) return c.html(renderReportHtml(JSON.parse(row.report_json), config.publicBaseUrl));
   return c.body(row.report_json, 200, { 'content-type': 'application/json' });
 });
 
@@ -54,6 +63,27 @@ app.get('/verify/:job_id', (c) => {
   const signatureValid = verifyReport(report, signature, pubkey);
   const chain = verifyTraceChain(jobId);
 
+  const offlineSteps = [
+    `1. GET ${config.publicBaseUrl}/report/${jobId} and parse the JSON.`,
+    '2. Remove the "signature" field.',
+    '3. Canonicalize: recursively sort object keys lexicographically, serialize with JSON.stringify semantics, no whitespace. (All numbers in the report are integers, so this equals RFC 8785 JCS output.)',
+    '4. Verify the ed25519 signature over the UTF-8 bytes of that string using the auditor pubkey embedded in the report (auditor.pubkey).',
+    `5. Optionally re-derive the trace chain from GET ${config.publicBaseUrl}/trace/${jobId}: each step hash = sha256(canonical({job_id,seq,ts,step,data,prev_hash})). The report's trace_root must appear as one of the step hashes — it commits to the chain prefix at signing time; steps recorded after signing (delivery bookkeeping) extend the chain past it.`,
+  ];
+
+  if (wantsHtml(c)) {
+    return c.html(renderVerifyHtml({
+      jobId,
+      verdict: row.verdict,
+      signatureValid,
+      chainValid: chain.valid,
+      traceRoot: row.trace_root,
+      pubkey: `ed25519:${pubkey}`,
+      steps: offlineSteps,
+      baseUrl: config.publicBaseUrl,
+    }));
+  }
+
   return c.json({
     job_id: jobId,
     verdict: row.verdict,
@@ -61,13 +91,7 @@ app.get('/verify/:job_id', (c) => {
     trace_chain_valid: chain.valid,
     trace_root: row.trace_root,
     auditor_pubkey: `ed25519:${pubkey}`,
-    how_to_verify_offline: [
-      `1. GET ${config.publicBaseUrl}/report/${jobId} and parse the JSON.`,
-      '2. Remove the "signature" field.',
-      '3. Canonicalize: recursively sort object keys lexicographically, serialize with JSON.stringify semantics, no whitespace. (All numbers in the report are integers, so this equals RFC 8785 JCS output.)',
-      '4. Verify the ed25519 signature over the UTF-8 bytes of that string using the auditor pubkey embedded in the report (auditor.pubkey).',
-      `5. Optionally re-derive the trace chain from GET ${config.publicBaseUrl}/trace/${jobId}: each step hash = sha256(canonical({job_id,seq,ts,step,data,prev_hash})). The report's trace_root must appear as one of the step hashes — it commits to the chain prefix at signing time; steps recorded after signing (delivery bookkeeping) extend the chain past it.`,
-    ],
+    how_to_verify_offline: offlineSteps,
   });
 });
 
@@ -77,7 +101,7 @@ app.get('/trace/:job_id', (c) => {
   const steps = repo.getTraceSteps(jobId);
   if (steps.length === 0) return c.json({ error: 'trace not found' }, 404);
 
-  if ((c.req.header('accept') ?? '').includes('text/html')) {
+  if (wantsHtml(c)) {
     return c.html(renderTraceHtml({
       jobId,
       traceRoot: traceRoot(jobId),

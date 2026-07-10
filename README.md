@@ -132,7 +132,7 @@ Delivered as a `text` deliverable — a JSON receipt string (also POSTed to `cal
 
 The receipt is a self-describing summary; `signed_report.signature` (with `pubkey`) commits to the full report at `report_url`, verifiable offline.
 
-Public routes: `GET /report/:job_id` (signed AuditReport JSON) · `GET /verify/:job_id` (server-side re-check + offline recipe) · `GET /trace/:job_id` (JSON, or HTML viewer in a browser) · `GET /badge/:agent_id.svg|.json` (embeddable status badge) · `GET /healthz`.
+Public routes: `GET /report/:job_id` (signed AuditReport JSON) · `GET /verify/:job_id` (server-side re-check + offline recipe) · `GET /trace/:job_id` (hash-chained trace) · `GET /badge/:agent_id.svg|.json` (embeddable status badge) · `GET /healthz`. Report, verify and trace are content-negotiated: agents and `curl` get JSON, browsers get an HTML view (`?format=json` forces JSON).
 
 ```markdown
 [![CAP audit](https://handshake.tangvu.dev/badge/<agent_id>.svg)](https://handshake.tangvu.dev/badge/<agent_id>.json)

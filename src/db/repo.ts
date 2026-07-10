@@ -148,4 +148,20 @@ export const repo = {
     return db.prepare('SELECT * FROM reports ORDER BY created_at DESC LIMIT ?')
       .all(limit) as ReportRow[];
   },
+
+  // Aggregate figures for the landing page stat tiles. The DB is small (one
+  // row per audit), so parsing report JSON for the tx count is fine here.
+  getStats(): { audits: number; passed: number; probes: number; settlementTxs: number } {
+    const audits = (db.prepare('SELECT COUNT(*) n FROM reports').get() as { n: number }).n;
+    const passed = (db.prepare(`SELECT COUNT(*) n FROM reports WHERE verdict = 'PASS'`).get() as { n: number }).n;
+    const probes = (db.prepare('SELECT COUNT(*) n FROM probes').get() as { n: number }).n;
+    let settlementTxs = 0;
+    for (const row of db.prepare('SELECT report_json FROM reports').all() as { report_json: string }[]) {
+      try {
+        const txs = JSON.parse(row.report_json)?.checks?.settlement?.tx_hashes;
+        if (Array.isArray(txs)) settlementTxs += txs.length;
+      } catch { /* malformed report rows don't break the landing page */ }
+    }
+    return { audits, passed, probes, settlementTxs };
+  },
 };

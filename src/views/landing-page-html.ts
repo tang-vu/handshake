@@ -1,32 +1,64 @@
 import type { ReportRow } from '../db/repo.js';
 import { esc } from './html-escape.js';
+import { renderPage, verdictChip } from './page-shell.js';
 
 // Server-rendered landing page at "/". First thing a human sees when they open
-// the public URL: what Handshake is, the auditor identity they can verify
-// signatures against, and deep links into the most recent real audits.
-
-const VERDICT_CLASS: Record<string, string> = { PASS: 'pass', PARTIAL: 'partial', FAIL: 'fail' };
+// the public URL: what Handshake is, live figures from this instance's own DB,
+// how an audit works, and deep links into every real report ever issued.
 
 const REPO_URL = 'https://github.com/tang-vu/handshake';
 
+const CHECKS: Array<[string, string, string]> = [
+  ['C1 callable', 'Accepts negotiations and produces on-chain orders', 'hard — fail ⇒ FAIL'],
+  ['C2 schema', 'Deliveries conform to the CAP deliverable contract', 'quality — fail ⇒ PARTIAL'],
+  ['C3 settlement', 'Escrow-lock + release txs re-verified against Base RPC directly', 'hard — fail ⇒ FAIL'],
+  ['C4 latency', 'p50/p95 of paid→completed per probe vs threshold', 'quality — fail ⇒ PARTIAL'],
+  ['C5 reliability', 'Every probe must complete; errors and timeouts count', 'quality — fail ⇒ PARTIAL'],
+];
+
+const STEPS: Array<[string, string]> = [
+  ['Hire via CAP', 'An agent negotiates Handshake’s audit service and pays 1 USDC into escrow, passing the <code>target_service_id</code> to audit.'],
+  ['Probed as a real customer', 'Handshake calls the target 5 times through full CAP order lifecycles, paying the target’s real USDC price per probe on Base mainnet.'],
+  ['Signed, verifiable report', 'Five deterministic checks produce a PASS/PARTIAL/FAIL report — ed25519-signed over canonical JSON with a hash-chained trace, verifiable offline.'],
+];
+
 const ENDPOINTS: Array<[string, string]> = [
-  ['GET /report/:job_id', 'Signed AuditReport (JSON), ed25519 over RFC 8785 canonical form'],
-  ['GET /verify/:job_id', 'Server-side signature + trace-chain re-check, plus the offline recipe'],
+  ['GET /report/:job_id', 'Signed AuditReport — JSON for agents, HTML view in a browser'],
+  ['GET /verify/:job_id', 'Signature + trace-chain re-check, plus the offline verification recipe'],
   ['GET /trace/:job_id', 'Hash-chained reasoning trace (HTML for browsers, JSON for agents)'],
   ['GET /badge/:agent_id.svg', 'Embeddable verdict badge; .json for the machine-readable form'],
-  ['GET /job/:job_id', 'Job status and per-probe settlement detail'],
+  ['GET /job/:job_id', 'Job status and per-probe settlement detail (JSON)'],
   ['GET /healthz', 'Liveness and mode'],
 ];
 
+const CSS = `
+  .hero{display:flex;gap:1.4rem;align-items:flex-start;margin:1.4rem 0 0}
+  .hero img{width:72px;height:72px;border-radius:16px;flex:none}
+  .hero h1{font-size:2rem;line-height:1.15}
+  .hero .tag{color:var(--ink2);margin:.4rem 0 0;font-size:1.02rem}
+  .cta{display:flex;gap:.7rem;margin:1.3rem 0 0;flex-wrap:wrap;align-items:center}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(9.5rem,1fr));gap:.8rem;margin:2.2rem 0 0}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.8rem 1rem}
+  .stat .label{font-size:.78rem;color:var(--ink2)}
+  .stat .value{font-size:1.7rem;font-weight:650;letter-spacing:-.02em;margin-top:.1rem}
+  .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:.8rem}
+  .step{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.9rem 1.05rem}
+  .step .n{display:inline-flex;width:1.55rem;height:1.55rem;border-radius:99px;background:var(--grad);
+    color:#fff;font-weight:650;font-size:.85rem;align-items:center;justify-content:center;margin-bottom:.45rem}
+  .step h3{margin:.1rem 0 .3rem;font-size:.98rem}
+  .step p{margin:0;font-size:.87rem;color:var(--ink2)}
+  .note{font-size:.88rem;color:var(--ink2);margin:.25rem 0 .8rem}
+  .links a{margin-right:.6rem;white-space:nowrap}
+  .integrity{border-left:3px solid var(--brand);padding:.15rem 0 .15rem .9rem;margin:1.6rem 0;color:var(--ink2)}
+`;
+
 function reportRow(r: ReportRow, baseUrl: string): string {
-  const cls = VERDICT_CLASS[r.verdict] ?? 'partial';
-  const shortJob = r.job_id.slice(0, 8);
   return `<tr>
-  <td class="mono" title="${esc(r.job_id)}">${esc(shortJob)}…</td>
-  <td class="mono" title="${esc(r.subject_agent_id)}">${esc(r.subject_agent_id.slice(0, 8))}…</td>
-  <td><span class="verdict ${cls}">${esc(r.verdict)}</span></td>
-  <td class="ts">${esc(r.created_at)}</td>
-  <td class="links">
+  <td class="mono nowrap" title="${esc(r.job_id)}">${esc(r.job_id.slice(0, 8))}…</td>
+  <td class="mono nowrap" title="${esc(r.subject_agent_id)}">${esc(r.subject_agent_id.slice(0, 8))}…</td>
+  <td>${verdictChip(r.verdict)}</td>
+  <td class="mono nowrap">${esc(r.created_at.slice(0, 16).replace('T', ' '))}</td>
+  <td class="links small">
     <a href="${esc(baseUrl)}/report/${esc(r.job_id)}">report</a>
     <a href="${esc(baseUrl)}/verify/${esc(r.job_id)}">verify</a>
     <a href="${esc(baseUrl)}/trace/${esc(r.job_id)}">trace</a>
@@ -40,118 +72,78 @@ export function renderLandingHtml(args: {
   pubkey: string;
   agentId: string;
   reports: ReportRow[];
+  stats: { audits: number; passed: number; probes: number; settlementTxs: number };
 }): string {
+  const storeUrl = args.agentId ? `https://agent.croo.network/agents/${esc(args.agentId)}` : '';
+
   const audits = args.reports.length
     ? `<p class="note">Every report this instance has ever issued is listed below, unredacted —
 including earlier <strong>FAIL</strong> runs against our own demo target while its integration
-was still broken. FAIL ships as FAIL; the report's credibility is the product.</p>
-<table>
-<thead><tr><th>job</th><th>subject agent</th><th>verdict</th><th>issued</th><th></th></tr></thead>
-<tbody>
-${args.reports.map((r) => reportRow(r, args.baseUrl)).join('\n')}
-</tbody>
-</table>`
-    : `<p class="empty">No audits delivered yet on this instance. Buy the audit service on
+was still broken. FAIL ships as FAIL; the report’s credibility is the product.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Job</th><th>Subject</th><th>Verdict</th><th>Issued (UTC)</th><th>Links</th></tr></thead>
+<tbody>${args.reports.map((r) => reportRow(r, args.baseUrl)).join('\n')}</tbody>
+</table></div>`
+    : `<p class="card muted">No audits delivered yet on this instance. Buy the audit service on
        <a href="https://agent.croo.network/">agent.croo.network</a> and the report lands here.</p>`;
 
-  const storeLink = args.agentId
-    ? `<a href="https://agent.croo.network/agents/${esc(args.agentId)}">Agent Store listing</a> · `
-    : '';
-
-  return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<title>Handshake — CAP Integration Auditor</title>
-<meta name="description" content="A paid, CAP-callable agent that audits other agents' CAP integrations and issues signed, independently verifiable attestations.">
-<style>
-  :root{color-scheme:light}
-  body{font-family:ui-sans-serif,system-ui,sans-serif;margin:0;color:#1a1a1a;background:#fafafa;line-height:1.55}
-  main{max-width:60rem;margin:0 auto;padding:2.5rem 1rem 4rem}
-  header{display:flex;align-items:center;gap:1rem;margin-bottom:.5rem}
-  header img{width:56px;height:56px;border-radius:13px}
-  h1{font-size:1.6rem;margin:0}
-  h2{font-size:1.05rem;margin:2.5rem 0 .75rem;border-bottom:1px solid #e2e2e2;padding-bottom:.35rem}
-  .tagline{color:#555;margin:.15rem 0 0;font-size:.95rem}
-  .lede{font-size:1.02rem;margin:1.5rem 0}
-  code{background:#eee;padding:.1rem .3rem;border-radius:3px;font-size:.85em}
-  a{color:#1a5fb4}
-  .meta{display:flex;flex-wrap:wrap;gap:.5rem;margin:1.25rem 0}
-  .chip{background:#fff;border:1px solid #ddd;border-radius:999px;padding:.25rem .8rem;font-size:.8rem}
-  .chip b{font-weight:600}
-  table{border-collapse:collapse;width:100%;font-size:.85rem;background:#fff}
-  th,td{border:1px solid #ddd;padding:.45rem .6rem;text-align:left}
-  th{background:#f0f0f0;font-weight:600}
-  .mono,.ts{font-family:ui-monospace,monospace;font-size:.78rem;white-space:nowrap}
-  .links a{margin-right:.6rem;white-space:nowrap}
-  .verdict{font-weight:600;font-size:.75rem;padding:.1rem .5rem;border-radius:4px}
-  .pass{background:#e6f4ea;color:#137333} .partial{background:#fef7e0;color:#b06000}
-  .fail{background:#fce8e6;color:#c5221f}
-  .empty{background:#fff;border:1px dashed #ccc;border-radius:6px;padding:1rem;color:#555}
-  .note{font-size:.88rem;color:#555;margin:.25rem 0 .9rem}
-  .hire{background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;padding:.6rem .9rem;font-size:.95rem}
-  .key{word-break:break-all;font-family:ui-monospace,monospace;font-size:.78rem;background:#fff;
-       border:1px solid #ddd;border-radius:6px;padding:.6rem .8rem}
-  footer{margin-top:3rem;padding-top:1rem;border-top:1px solid #e2e2e2;color:#666;font-size:.85rem}
-  @media(prefers-color-scheme:dark){
-    :root{color-scheme:dark}
-    body{background:#14161a;color:#e6e6e6}
-    h2{border-color:#2c3038} .tagline,.empty,footer{color:#9aa0aa}
-    code{background:#23262c} a{color:#7aa7ff}
-    table,.chip,.key,.empty{background:#1b1e24;border-color:#2c3038}
-    .note{color:#9aa0aa} .hire{background:#1c2340;border-color:#31408a}
-    th{background:#23262c} th,td{border-color:#2c3038}
-    .pass{background:#0e2f1c;color:#7ee2a8} .partial{background:#33280a;color:#f0c674}
-    .fail{background:#3a1614;color:#f2a8a2}
-  }
-</style></head><body><main>
-
-<header>
+  const content = `
+<div class="hero">
   <img src="/logo.svg" alt="">
   <div>
-    <h1>Handshake</h1>
-    <p class="tagline">CAP Integration Auditor · CROO Agent Protocol · Base mainnet</p>
+    <h1>Audits for the agent economy,<br>signed and settled on Base</h1>
+    <p class="tag">A paid, CAP-callable agent that audits other agents’ CAP integrations
+    as a <strong>real paying customer</strong> and issues signed, independently verifiable attestations.</p>
+    <div class="cta">
+      ${storeUrl ? `<a class="btn primary" href="${storeUrl}">Hire it on the Agent Store — 1 USDC</a>` : ''}
+      <a class="btn ghost" href="${REPO_URL}">Source on GitHub</a>
+      <span class="small muted">mode: ${esc(args.mode)} · Base mainnet (8453)</span>
+    </div>
   </div>
-</header>
-
-<p class="lede">A paid, CAP-callable agent that audits other agents' CAP integrations and issues
-<strong>signed, independently verifiable attestations</strong>. Pay it ~1 USDC through CAP and it calls
-your agent several times as a real paying customer, verifies USDC settlement on Base with its own RPC
-checks, and delivers an AuditReport with a hash-chained reasoning trace and an embeddable badge.</p>
-
-<p>Verdicts (<code>PASS</code> / <code>PARTIAL</code> / <code>FAIL</code>) are computed by deterministic
-code — no LLM judgment, and no mechanism exists to pay for a better verdict. A FAIL ships as FAIL with
-concrete remediation steps.</p>
-${args.agentId ? `<p class="hire">▸ Hire it now on the
-<a href="https://agent.croo.network/agents/${esc(args.agentId)}">CROO Agent Store</a> —
-send <code>{"target_service_id": "&lt;service to audit&gt;"}</code> as requirements, pay 1 USDC,
-keep your agent online.</p>` : ''}
-
-<div class="meta">
-  <span class="chip"><b>mode</b> ${esc(args.mode)}</span>
-  <span class="chip"><b>chain</b> Base mainnet (8453)</span>
-  <span class="chip"><b>checks</b> callable · schema · settlement · latency · reliability</span>
 </div>
 
-<h2>Recent audits</h2>
+<div class="stats">
+  <div class="stat"><div class="label">Audits delivered</div><div class="value">${args.stats.audits}</div></div>
+  <div class="stat"><div class="label">PASS verdicts</div><div class="value">${args.stats.passed}</div></div>
+  <div class="stat"><div class="label">Probe calls paid</div><div class="value">${args.stats.probes}</div></div>
+  <div class="stat"><div class="label">On-chain txs verified</div><div class="value">${args.stats.settlementTxs}</div></div>
+</div>
+
+<h2>How an audit works</h2>
+<div class="steps">
+${STEPS.map(([t, d], i) => `<div class="step"><span class="n">${i + 1}</span><h3>${t}</h3><p>${d}</p></div>`).join('\n')}
+</div>
+
+<p class="integrity">Verdicts are computed by deterministic code — no LLM judgment, and no mechanism
+exists to pay for a better one. Over-priced targets and internal failures end in automatic full
+refunds through CAP’s own escrow-rejection flow.</p>
+
+<h2 id="audits">Recent audits</h2>
 ${audits}
 
+<h2>The five checks</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Check</th><th>What it proves</th><th>Gate</th></tr></thead>
+<tbody>${CHECKS.map(([c, w, g]) =>
+  `<tr><td class="nowrap"><strong>${c}</strong></td><td>${w}</td><td class="small muted nowrap">${g}</td></tr>`).join('\n')}
+</tbody></table></div>
+
 <h2>Auditor identity</h2>
-<p>Every report is signed with this ed25519 key. Verify offline: strip <code>signature</code>, canonicalize
-the JSON (RFC 8785), check the signature over the UTF-8 bytes.</p>
-<div class="key">ed25519:${esc(args.pubkey)}</div>
+<p class="small">Every report is signed with this ed25519 key. Verify offline: strip <code>signature</code>,
+canonicalize the JSON (RFC 8785), check the signature over the UTF-8 bytes — recipe on any
+<a href="/verify/${args.reports.length ? esc(args.reports[0].job_id) : ''}">verify page</a> and in the README.</p>
+<div class="keybox">ed25519:${esc(args.pubkey)}</div>
 
-<h2>API</h2>
-<table>
-<thead><tr><th>endpoint</th><th>returns</th></tr></thead>
-<tbody>
-${ENDPOINTS.map(([e, d]) => `<tr><td class="mono">${esc(e)}</td><td>${esc(d)}</td></tr>`).join('\n')}
-</tbody>
-</table>
+<h2 id="api">API</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Endpoint</th><th>Returns</th></tr></thead>
+<tbody>${ENDPOINTS.map(([e, d]) => `<tr><td class="mono nowrap">${esc(e)}</td><td>${esc(d)}</td></tr>`).join('\n')}
+</tbody></table></div>`;
 
-<footer>
-  ${storeLink}<a href="${REPO_URL}">Source on GitHub</a> · <a href="/healthz">/healthz</a>
-</footer>
-
-</main></body></html>`;
+  return renderPage({
+    title: 'Handshake — CAP Integration Auditor',
+    description: 'A paid, CAP-callable agent that audits other agents’ CAP integrations and issues signed, independently verifiable attestations.',
+    extraCss: CSS,
+    content,
+  });
 }
