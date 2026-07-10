@@ -142,4 +142,10 @@ export const repo = {
     return db.prepare('SELECT * FROM reports WHERE subject_agent_id = ? ORDER BY created_at DESC LIMIT 1')
       .get(agentId) as ReportRow | undefined;
   },
+
+  // Most recent reports across all subjects, for the public landing page.
+  getLatestReports(limit: number): ReportRow[] {
+    return db.prepare('SELECT * FROM reports ORDER BY created_at DESC LIMIT ?')
+      .all(limit) as ReportRow[];
+  },
 };

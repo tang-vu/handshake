@@ -1,11 +1,9 @@
 import type { TraceStepRow } from '../db/repo.js';
+import { esc } from './html-escape.js';
 
 // Server-rendered, dependency-free trace viewer. Shows the hash-chained
 // reasoning trace of one audit job so anyone can eyeball what Handshake did
 // and cross-check each step hash against the documented recipe.
-
-const esc = (s: string) =>
-  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export function renderTraceHtml(args: {
   jobId: string;

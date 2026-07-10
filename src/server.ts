@@ -11,9 +11,18 @@ import { BaseChainVerifier } from './cap/chain-verifier.js';
 import { DryrunCapClient, DryrunChainVerifier } from './cap/dryrun-client.js';
 import { badgeData, badgeSvg } from './attest/badge.js';
 import { renderTraceHtml } from './views/trace-viewer-html.js';
+import { renderLandingHtml } from './views/landing-page-html.js';
 import { faviconSvg, logoSvg } from './views/brand-assets.js';
 
 const app = new Hono();
+
+app.get('/', (c) => c.html(renderLandingHtml({
+  baseUrl: config.publicBaseUrl,
+  mode: config.mode,
+  pubkey: publicKeyHex(config.ed25519PrivateKeyHex),
+  agentId: config.handshakeAgentId,
+  reports: repo.getLatestReports(10),
+})));
 
 app.get('/healthz', (c) => c.json({
   ok: true,
