@@ -8,6 +8,7 @@ import { renderPage, verdictChip, passChip } from './page-shell.js';
 interface SettlementVerification { order_id?: string; escrow_lock?: string; settlement_release?: string }
 
 const CSS = `
+  h2{margin-top:2.6rem}
   .banner{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;
     background:var(--card);border:1px solid var(--line);border-radius:12px;padding:1.05rem 1.2rem}
   .banner .verdict{font-size:1.02rem;padding:.35rem 1rem}

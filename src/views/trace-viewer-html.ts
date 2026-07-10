@@ -8,6 +8,8 @@ import { renderPage } from './page-shell.js';
 
 const CSS = `
   .chainbar{border-radius:10px;padding:.7rem 1rem;font-weight:600;font-size:.92rem;margin:1rem 0}
+  .chainbar.ok{border:1px solid var(--good-line)}
+  .chainbar.bad{border:1px solid var(--crit-line)}
   .chainbar.ok{background:var(--good-bg);color:var(--good)}
   .chainbar.bad{background:var(--crit-bg);color:var(--crit)}
   td pre{margin:0;white-space:pre-wrap;word-break:break-word;font-size:.75rem;line-height:1.45}

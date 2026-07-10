@@ -6,10 +6,13 @@ import { renderPage } from './page-shell.js';
 // reproduce the same verification offline with zero trust in this server.
 
 const CSS = `
+  h2{margin-top:2.6rem}
   .checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));gap:.8rem;margin-top:1rem}
   .bigcheck{border-radius:12px;padding:1.1rem 1.25rem;border:1px solid var(--line);background:var(--card)}
   .bigcheck .state{font-size:1.35rem;font-weight:700;letter-spacing:-.01em;display:flex;align-items:center;gap:.55rem}
   .bigcheck.ok .state{color:var(--good)} .bigcheck.bad .state{color:var(--crit)}
+  .bigcheck.ok{border-color:var(--good-line);box-shadow:0 0 32px rgba(74,222,128,.07)}
+  .bigcheck.bad{border-color:var(--crit-line);box-shadow:0 0 32px rgba(248,113,113,.07)}
   .bigcheck .what{font-size:.85rem;color:var(--ink2);margin-top:.3rem}
   .recipe{counter-reset:step;list-style:none;padding:0;margin:.8rem 0 0}
   .recipe li{position:relative;padding:.45rem 0 .45rem 2.4rem;font-size:.9rem}
