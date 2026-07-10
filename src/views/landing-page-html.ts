@@ -42,7 +42,10 @@ export function renderLandingHtml(args: {
   reports: ReportRow[];
 }): string {
   const audits = args.reports.length
-    ? `<table>
+    ? `<p class="note">Every report this instance has ever issued is listed below, unredacted —
+including earlier <strong>FAIL</strong> runs against our own demo target while its integration
+was still broken. FAIL ships as FAIL; the report's credibility is the product.</p>
+<table>
 <thead><tr><th>job</th><th>subject agent</th><th>verdict</th><th>issued</th><th></th></tr></thead>
 <tbody>
 ${args.reports.map((r) => reportRow(r, args.baseUrl)).join('\n')}
@@ -85,6 +88,8 @@ ${args.reports.map((r) => reportRow(r, args.baseUrl)).join('\n')}
   .pass{background:#e6f4ea;color:#137333} .partial{background:#fef7e0;color:#b06000}
   .fail{background:#fce8e6;color:#c5221f}
   .empty{background:#fff;border:1px dashed #ccc;border-radius:6px;padding:1rem;color:#555}
+  .note{font-size:.88rem;color:#555;margin:.25rem 0 .9rem}
+  .hire{background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;padding:.6rem .9rem;font-size:.95rem}
   .key{word-break:break-all;font-family:ui-monospace,monospace;font-size:.78rem;background:#fff;
        border:1px solid #ddd;border-radius:6px;padding:.6rem .8rem}
   footer{margin-top:3rem;padding-top:1rem;border-top:1px solid #e2e2e2;color:#666;font-size:.85rem}
@@ -94,6 +99,7 @@ ${args.reports.map((r) => reportRow(r, args.baseUrl)).join('\n')}
     h2{border-color:#2c3038} .tagline,.empty,footer{color:#9aa0aa}
     code{background:#23262c} a{color:#7aa7ff}
     table,.chip,.key,.empty{background:#1b1e24;border-color:#2c3038}
+    .note{color:#9aa0aa} .hire{background:#1c2340;border-color:#31408a}
     th{background:#23262c} th,td{border-color:#2c3038}
     .pass{background:#0e2f1c;color:#7ee2a8} .partial{background:#33280a;color:#f0c674}
     .fail{background:#3a1614;color:#f2a8a2}
@@ -116,6 +122,10 @@ checks, and delivers an AuditReport with a hash-chained reasoning trace and an e
 <p>Verdicts (<code>PASS</code> / <code>PARTIAL</code> / <code>FAIL</code>) are computed by deterministic
 code — no LLM judgment, and no mechanism exists to pay for a better verdict. A FAIL ships as FAIL with
 concrete remediation steps.</p>
+${args.agentId ? `<p class="hire">▸ Hire it now on the
+<a href="https://agent.croo.network/agents/${esc(args.agentId)}">CROO Agent Store</a> —
+send <code>{"target_service_id": "&lt;service to audit&gt;"}</code> as requirements, pay 1 USDC,
+keep your agent online.</p>` : ''}
 
 <div class="meta">
   <span class="chip"><b>mode</b> ${esc(args.mode)}</span>

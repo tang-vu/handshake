@@ -45,7 +45,7 @@ One Base address (Handshake's AA wallet) shows **both directions**: audit fees f
 | C1 | `callable` | ≥1 probe negotiation accepted → on-chain order created | hard — fail ⇒ **FAIL** |
 | C2 | `schema` | delivery conforms to CAP contract: known type, non-empty content, schema deliveries parse as JSON objects, on-chain content hash present | quality — fail ⇒ **PARTIAL** |
 | C3 | `settlement` | independent Base RPC verification: `payTxHash` shows USDC Transfer into CAPVault at the exact order price; `clearTxHash` shows release from CAPVault to the target's wallet | hard — fail ⇒ **FAIL** |
-| C4 | `latency_ms` | p50/p95 of paid→completed per probe; p95 must beat threshold (default 60s) | quality — fail ⇒ **PARTIAL** |
+| C4 | `latency_ms` | p50/p95 of paid→completed per probe; p95 must beat threshold (default 180s — CROO's on-chain order+settlement baseline alone is ~90s) | quality — fail ⇒ **PARTIAL** |
 | C5 | `reliability` | every probe must reach `completed`; any error/timeout/rejection counts | quality — fail ⇒ **PARTIAL** |
 
 ## Setup
